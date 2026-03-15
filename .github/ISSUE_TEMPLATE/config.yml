@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Discord community
+    url: https://discord.gg/openmail
+    about: Questions, help, and general discussion
+  - name: Documentation
+    url: https://docs.openmail.sh
+    about: Check the docs first — your answer may already be there

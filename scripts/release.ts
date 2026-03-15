@@ -53,13 +53,6 @@ async function main() {
     return r.status === 0;
   }
 
-  console.log("\nBuilding...");
-
-  if (!run("npm", ["run", "build"])) {
-    console.error("Build failed.");
-    process.exit(1);
-  }
-
   const newVersion = bump(current, bumpType as "patch" | "minor" | "major");
   const versionArgs = message?.trim()
     ? [bumpType, "-m", message.trim()]
@@ -69,18 +62,17 @@ async function main() {
     process.exit(1);
   }
 
-  console.log("\nPublishing to npm...");
+  console.log("\nPushing tag to GitHub...");
 
-  if (!run("npm", ["publish"])) {
-    console.error("Publish failed. Rolling back version bump...");
-    run("npm", ["version", current, "--no-git-tag-version"]);
+  if (!run("git", ["push", "--follow-tags"])) {
+    console.error("Push failed. Rolling back version bump...");
     run("git", ["tag", "-d", `v${newVersion}`]);
-    run("git", ["checkout", "--", "package.json"]);
+    run("git", ["reset", "--soft", "HEAD~1"]);
     console.error("Rolled back to version", current);
     process.exit(1);
   }
 
-  console.log("\n✓ Released successfully.");
+  console.log(`\n✓ Tag v${newVersion} pushed — GitHub Actions will build, publish to npm, and create a GitHub Release.`);
 }
 
 main();
