@@ -1,0 +1,46 @@
+{
+  "name": "@openmail/cli",
+  "version": "0.1.6",
+  "description": "OpenMail CLI",
+  "license": "MIT",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "bin": {
+    "openmail": "dist/index.js"
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/openmailsh/cli.git"
+  },
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "test": "vitest run",
+    "release": "tsx scripts/release.ts",
+    "release:patch": "npm run build && npm version patch && npm publish",
+    "release:minor": "npm run build && npm version minor && npm publish",
+    "release:major": "npm run build && npm version major && npm publish"
+  },
+  "dependencies": {
+    "@clack/prompts": "^1.1.0",
+    "ws": "^8.18.3"
+  },
+  "devDependencies": {
+    "@types/node": "^22.13.5",
+    "@types/ws": "^8.18.1",
+    "tsx": "^4.19.3",
+    "typescript": "^5.7.3",
+    "vitest": "^3.0.7"
+  }
+}
