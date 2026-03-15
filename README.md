@@ -82,3 +82,7 @@ openmail doctor
 ## Documentation
 
 [docs.openmail.sh](https://docs.openmail.sh)
+
+## Contributing
+
+Bug reports, feature requests, and pull requests are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md) to get started.
