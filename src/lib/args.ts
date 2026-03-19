@@ -81,3 +81,22 @@ export function getNumberFlag(
   }
   return parsed;
 }
+
+/**
+ * Collects all values for a repeated flag from process.argv.
+ * e.g. `--attach a.pdf --attach b.pdf` → ["a.pdf", "b.pdf"]
+ */
+export function getRepeatedStringFlag(key: string): string[] {
+  const argv = process.argv.slice(2);
+  const flag = `--${key}`;
+  const results: string[] = [];
+  for (let i = 0; i < argv.length; i++) {
+    if (argv[i] === flag && argv[i + 1] && !argv[i + 1]!.startsWith("--")) {
+      results.push(argv[i + 1]!);
+      i++;
+    } else if (argv[i]?.startsWith(`${flag}=`)) {
+      results.push(argv[i]!.slice(flag.length + 1));
+    }
+  }
+  return results;
+}

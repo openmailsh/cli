@@ -25,6 +25,16 @@ export type BridgeConfig = {
  * Read a value from a .env file in the current directory.
  * Returns undefined if the file doesn't exist or the key isn't found.
  */
+function readSavedApiKey(statePath: string): string | undefined {
+  try {
+    const content = fs.readFileSync(statePath, "utf-8");
+    const state = JSON.parse(content) as { savedApiKey?: string };
+    return state.savedApiKey || undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 function readDotenv(key: string): string | undefined {
   let content: string;
   try {
@@ -49,20 +59,21 @@ function readDotenv(key: string): string | undefined {
 }
 
 export function resolveGlobalConfig(parsed: ParsedArgs): GlobalConfig {
-  const apiKey =
-    getStringFlag(parsed.flags, "api-key") ??
-    process.env.OPENMAIL_API_KEY ??
-    readDotenv("OPENMAIL_API_KEY");
-  const baseUrl =
-    getStringFlag(parsed.flags, "base-url") ??
-    process.env.OPENMAIL_BASE_URL ??
-    readDotenv("OPENMAIL_BASE_URL") ??
-    "https://api.openmail.sh";
   const statePath =
     getStringFlag(parsed.flags, "state-path") ??
     process.env.OPENMAIL_STATE_PATH ??
     readDotenv("OPENMAIL_STATE_PATH") ??
     path.join(os.homedir(), ".openmail-cli", "state.json");
+  const apiKey =
+    getStringFlag(parsed.flags, "api-key") ??
+    process.env.OPENMAIL_API_KEY ??
+    readDotenv("OPENMAIL_API_KEY") ??
+    readSavedApiKey(statePath);
+  const baseUrl =
+    getStringFlag(parsed.flags, "base-url") ??
+    process.env.OPENMAIL_BASE_URL ??
+    readDotenv("OPENMAIL_BASE_URL") ??
+    "https://api.openmail.sh";
   const output = getBooleanFlag(parsed.flags, "json") ? "json" : "human";
   const verbose = getBooleanFlag(parsed.flags, "verbose");
   return {

@@ -56,7 +56,33 @@ export class OpenMailHttpClient {
     bodyHtml?: string;
     threadId?: string;
     idempotencyKey?: string;
+    attachments?: { path: string; filename: string; contentType: string }[];
   }) {
+    const idempotencyKey = params.idempotencyKey ?? crypto.randomUUID();
+    const url = `/v1/inboxes/${encodeURIComponent(params.inboxId)}/send`;
+
+    if (params.attachments?.length) {
+      const { readFile } = await import("node:fs/promises");
+      const formData = new FormData();
+      formData.append("to", params.to);
+      formData.append("subject", params.subject);
+      formData.append("body", params.body);
+      if (params.bodyHtml) formData.append("bodyHtml", params.bodyHtml);
+      if (params.threadId) formData.append("threadId", params.threadId);
+
+      for (const att of params.attachments) {
+        const data = await readFile(att.path);
+        const blob = new Blob([data], { type: att.contentType });
+        formData.append("attachments", blob, att.filename);
+      }
+
+      return this.request(`${this.baseUrl}${url}`, {
+        method: "POST",
+        body: formData,
+        headers: { "Idempotency-Key": idempotencyKey },
+      });
+    }
+
     const payload: Record<string, string> = {
       to: params.to,
       subject: params.subject,
@@ -65,16 +91,16 @@ export class OpenMailHttpClient {
     if (params.bodyHtml) payload.bodyHtml = params.bodyHtml;
     if (params.threadId) payload.threadId = params.threadId;
 
-    const idempotencyKey = params.idempotencyKey ?? crypto.randomUUID();
-    return this.post(`/v1/inboxes/${encodeURIComponent(params.inboxId)}/send`, payload, {
+    return this.post(url, payload, {
       "Idempotency-Key": idempotencyKey,
     });
   }
 
   private async request(url: string, init: RequestInit): Promise<unknown> {
+    const isFormData = init.body instanceof FormData;
     const headers: Record<string, string> = {
       Authorization: `Bearer ${this.apiKey}`,
-      ...(init.body ? { "Content-Type": "application/json" } : {}),
+      ...(init.body && !isFormData ? { "Content-Type": "application/json" } : {}),
       ...(init.headers as Record<string, string> | undefined),
     };
 
