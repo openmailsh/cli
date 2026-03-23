@@ -138,74 +138,66 @@ export async function runOpenClawCommand(params: {
     },
   };
 
-  // --- Poll transport: cron job ---
-  let cronInstalled = false;
-  if (needsBridge && transportMode === "poll") {
-    const cronLine = buildCronLine({ envFilePath, hookPath });
-    const installed = installCronJob(cronLine);
-    if (installed) {
-      cronInstalled = true;
-      logInfo(params.ctx, "Cron job installed for inbox polling (every 60s).");
-    } else {
-      logError(params.ctx, "Could not install cron job automatically.");
-    }
-  }
+  // --- Daemon setup (poll + websocket use OS-native schedulers; webhook is self-managed) ---
+  const needsDaemon = needsBridge && transportMode !== "webhook";
+  const isPoll = transportMode === "poll";
 
-  // --- WebSocket transport: persistent daemon (systemd/launchd) ---
   let systemdPath: string | undefined;
+  let systemdTimerPath: string | undefined;
   let systemdWrite: { changed: boolean; existed: boolean } | undefined;
-  const useSystemd =
-    needsBridge &&
-    transportMode === "websocket" &&
-    (withSystemd || canManageSystemdUser());
+  let systemdTimerWrite: { changed: boolean; existed: boolean } | undefined;
+  const useSystemd = needsDaemon && (withSystemd || canManageSystemdUser());
   if (useSystemd) {
     const serviceDir = path.join(homeDir, ".config", "systemd", "user");
     systemdPath = path.join(serviceDir, "openmail-openclaw-bridge.service");
-    systemdWrite = await writeFileIfChanged(
-      systemdPath,
-      buildSystemdUnit({ envFilePath, hookPath }),
-    );
-  }
-  if (withSystemd && transportMode !== "websocket") {
-    logError(
-      params.ctx,
-      "`--with-systemd` only applies to websocket transport.",
-    );
+    if (isPoll) {
+      systemdWrite = await writeFileIfChanged(
+        systemdPath,
+        buildSystemdOneshotUnit({ envFilePath, hookPath }),
+      );
+      systemdTimerPath = path.join(serviceDir, "openmail-openclaw-bridge.timer");
+      systemdTimerWrite = await writeFileIfChanged(
+        systemdTimerPath,
+        buildSystemdTimer({ intervalSeconds: 60 }),
+      );
+    } else {
+      systemdWrite = await writeFileIfChanged(
+        systemdPath,
+        buildSystemdUnit({ envFilePath, hookPath }),
+      );
+    }
   }
 
   let systemdManaged = false;
   if (useSystemd && systemdPath) {
-    const configChanged = envWrite.changed || (systemdWrite?.changed ?? false);
-    const enabled = enableSystemdBridge(configChanged);
+    const configChanged =
+      envWrite.changed || (systemdWrite?.changed ?? false) || (systemdTimerWrite?.changed ?? false);
+    const enabled = isPoll
+      ? enableSystemdPollBridge(configChanged)
+      : enableSystemdBridge(configChanged);
     if (enabled) {
       systemdManaged = true;
       if (configChanged) {
-        logInfo(params.ctx, "Bridge restarted to pick up config changes.");
+        logInfo(params.ctx, isPoll
+          ? "Systemd timer restarted to pick up config changes."
+          : "Bridge restarted to pick up config changes.");
       }
     } else {
-      logError(
-        params.ctx,
-        "Could not start bridge with systemd automatically. Falling back to manual bridge command.",
-      );
+      logError(params.ctx, "Could not start bridge with systemd automatically.");
     }
   }
 
   let launchdPath: string | undefined;
   let launchdWrite: { changed: boolean; existed: boolean } | undefined;
-  const useLaunchd =
-    needsBridge &&
-    transportMode === "websocket" &&
-    !useSystemd &&
-    process.platform === "darwin";
+  const useLaunchd = needsDaemon && !useSystemd && process.platform === "darwin";
   if (useLaunchd) {
     const launchAgentsDir = path.join(homeDir, "Library", "LaunchAgents");
-    launchdPath = path.join(
-      launchAgentsDir,
-      "sh.openmail.openclaw-bridge.plist",
-    );
+    launchdPath = path.join(launchAgentsDir, "sh.openmail.openclaw-bridge.plist");
     launchdWrite = await writeFileIfChanged(
       launchdPath,
-      buildLaunchdPlist({ envFilePath, hookPath }),
+      isPoll
+        ? buildLaunchdPollPlist({ envFilePath, hookPath, intervalSeconds: 60 })
+        : buildLaunchdPlist({ envFilePath, hookPath }),
     );
   }
 
@@ -216,24 +208,36 @@ export async function runOpenClawCommand(params: {
     if (enabled) {
       launchdManaged = true;
       if (configChanged) {
-        logInfo(params.ctx, "Bridge restarted to pick up config changes.");
+        logInfo(params.ctx, isPoll
+          ? "Launchd poll timer restarted to pick up config changes."
+          : "Bridge restarted to pick up config changes.");
       }
     } else {
-      logError(
-        params.ctx,
-        "Could not start bridge with launchd automatically. Falling back to manual bridge command.",
-      );
+      logError(params.ctx, "Could not start bridge with launchd automatically.");
+    }
+  }
+
+  // --- Cron fallback (only for poll when systemd/launchd unavailable) ---
+  let cronInstalled = false;
+  if (isPoll && !systemdManaged && !launchdManaged) {
+    const cronLine = buildCronLine({ envFilePath, hookPath });
+    const cronResult = installCronJob(cronLine);
+    if (cronResult.ok) {
+      cronInstalled = true;
+      logInfo(params.ctx, "Cron job installed for inbox polling (every 60s).");
+    } else {
+      logError(params.ctx, `Could not install cron job: ${cronResult.error}`);
     }
   }
 
   if (params.ctx.output === "json" || params.ctx.verbose) {
     logInfo(params.ctx, `Prepared OpenClaw skill: ${skillPath}`);
     logInfo(params.ctx, `Prepared OpenMail env: ${envFilePath}`);
-    if (cronInstalled) {
-      logInfo(params.ctx, "Installed cron job for poll bridge.");
-    }
     if (systemdPath && systemdWrite) {
       logInfo(params.ctx, `Prepared systemd service: ${systemdPath}`);
+    }
+    if (systemdTimerPath && systemdTimerWrite) {
+      logInfo(params.ctx, `Prepared systemd timer: ${systemdTimerPath}`);
     }
     if (launchdPath && launchdWrite) {
       logInfo(params.ctx, `Prepared launchd plist: ${launchdPath}`);
@@ -249,9 +253,10 @@ export async function runOpenClawCommand(params: {
   const changes = [
     ...(skillWrite.changed ? [skillPath] : []),
     ...(envWrite.changed ? [envFilePath] : []),
-    ...(cronInstalled ? ["crontab"] : []),
     ...(systemdWrite?.changed && systemdPath ? [systemdPath] : []),
+    ...(systemdTimerWrite?.changed && systemdTimerPath ? [systemdTimerPath] : []),
     ...(launchdWrite?.changed && launchdPath ? [launchdPath] : []),
+    ...(cronInstalled ? ["crontab"] : []),
   ];
 
   const alreadyConfigured = changes.length === 0;
@@ -259,13 +264,6 @@ export async function runOpenClawCommand(params: {
   let bridgeResult: Record<string, unknown>;
   if (!needsBridge) {
     bridgeResult = { bridgeStatus: "none" };
-  } else if (transportMode === "poll") {
-    bridgeResult = cronInstalled
-      ? { bridgeStatus: "cron" }
-      : {
-          bridgeStatus: "manual",
-          runBridge: `Add to crontab: ${buildCronLine({ envFilePath, hookPath })}`,
-        };
   } else if (transportMode === "webhook") {
     bridgeResult = {
       bridgeStatus: "webhook",
@@ -276,14 +274,16 @@ export async function runOpenClawCommand(params: {
       ],
     };
   } else if (systemdManaged) {
-    bridgeResult = { bridgeStatus: "systemd" };
+    bridgeResult = { bridgeStatus: isPoll ? "systemd_timer" : "systemd" };
   } else if (launchdManaged) {
-    bridgeResult = { bridgeStatus: "launchd" };
+    bridgeResult = { bridgeStatus: isPoll ? "launchd_interval" : "launchd" };
+  } else if (cronInstalled) {
+    bridgeResult = { bridgeStatus: "cron" };
   } else {
-    bridgeResult = {
-      bridgeStatus: "manual",
-      runBridge: `OPENCLAW_HOOK_URL=http://127.0.0.1:18789${hookPath} OPENCLAW_HOOK_TOKEN=$OPENCLAW_HOOK_TOKEN OPENMAIL_API_KEY=$OPENMAIL_API_KEY openmail ws bridge`,
-    };
+    const manualCmd = isPoll
+      ? `Add to crontab: ${buildCronLine({ envFilePath, hookPath })}`
+      : `OPENCLAW_HOOK_URL=http://127.0.0.1:18789${hookPath} OPENCLAW_HOOK_TOKEN=$OPENCLAW_HOOK_TOKEN OPENMAIL_API_KEY=$OPENMAIL_API_KEY openmail ws bridge`;
+    bridgeResult = { bridgeStatus: "manual", runBridge: manualCmd };
   }
 
   return {
@@ -314,6 +314,7 @@ function buildSkillMarkdown(): string {
   return `---
 name: openmail
 description: Dedicated email address for sending and receiving email. Use when the agent needs to send email to external services, receive replies, sign up for services, handle support tickets, or interact with any human institution via email.
+metadata: {"openclaw":{"emoji":"📬","requires":{"bins":["openmail"]},"primaryEnv":"OPENMAIL_API_KEY","install":[{"id":"npm","kind":"node","package":"@openmail/cli","bins":["openmail"],"label":"Install OpenMail CLI (npm)"}]}}
 ---
 
 # OpenMail
@@ -523,6 +524,33 @@ WantedBy=default.target
 `;
 }
 
+function buildSystemdOneshotUnit(params: { envFilePath: string; hookPath: string }): string {
+  const scriptPath = process.argv[1] ?? "packages/cli/dist/index.js";
+  return `[Unit]
+Description=OpenMail to OpenClaw poll bridge (oneshot)
+
+[Service]
+Type=oneshot
+EnvironmentFile=${params.envFilePath}
+Environment=OPENCLAW_HOOK_URL=http://127.0.0.1:18789${params.hookPath}
+ExecStart=${process.execPath} ${scriptPath} poll bridge
+`;
+}
+
+function buildSystemdTimer(params: { intervalSeconds: number }): string {
+  return `[Unit]
+Description=OpenMail inbox poll timer
+
+[Timer]
+OnBootSec=10s
+OnUnitActiveSec=${params.intervalSeconds}s
+AccuracySec=5s
+
+[Install]
+WantedBy=timers.target
+`;
+}
+
 async function runResetSetup(params: {
   ctx: CliContext;
   statePath: string;
@@ -538,6 +566,13 @@ async function runResetSetup(params: {
       "systemd",
       "user",
       "openmail-openclaw-bridge.service",
+    ),
+    systemdTimer: path.join(
+      os.homedir(),
+      ".config",
+      "systemd",
+      "user",
+      "openmail-openclaw-bridge.timer",
     ),
     launchd: path.join(
       os.homedir(),
@@ -578,6 +613,8 @@ async function runResetSetup(params: {
   await removeIfExists(targets.env, false, removed);
   await removeIfExists(targets.skillDir, true, removed);
   removeCronJob();
+  disableSystemdPollBridge();
+  await removeIfExists(targets.systemdTimer, false, removed);
   await removeIfExists(targets.systemd, false, removed);
   disableLaunchdBridge(targets.launchd);
   await removeIfExists(targets.launchd, false, removed);
@@ -642,6 +679,36 @@ function buildLaunchdPlist(params: {
 `;
 }
 
+function buildLaunchdPollPlist(params: {
+  envFilePath: string;
+  hookPath: string;
+  intervalSeconds: number;
+}): string {
+  const scriptPath = process.argv[1] ?? "packages/cli/dist/index.js";
+  const hookUrl = `http://127.0.0.1:18789${params.hookPath}`;
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>sh.openmail.openclaw-bridge</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/bin/sh</string>
+    <string>-c</string>
+    <string>. ${params.envFilePath} &amp;&amp; OPENCLAW_HOOK_URL=${hookUrl} exec ${process.execPath} ${scriptPath} poll bridge</string>
+  </array>
+  <key>StartInterval</key>
+  <integer>${params.intervalSeconds}</integer>
+  <key>StandardOutPath</key>
+  <string>/tmp/openmail-bridge.log</string>
+  <key>StandardErrorPath</key>
+  <string>/tmp/openmail-bridge.log</string>
+</dict>
+</plist>
+`;
+}
+
 function enableLaunchdBridge(
   plistPath: string,
   configChanged: boolean,
@@ -693,6 +760,36 @@ function enableSystemdBridge(configChanged: boolean): boolean {
   return run.status === 0;
 }
 
+function disableSystemdPollBridge(): void {
+  spawnSync("systemctl", ["--user", "disable", "--now", "openmail-openclaw-bridge.timer"], {
+    stdio: "ignore",
+  });
+}
+
+function enableSystemdPollBridge(configChanged: boolean): boolean {
+  const reload = spawnSync("systemctl", ["--user", "daemon-reload"], {
+    stdio: "ignore",
+  });
+  if (reload.status !== 0) {
+    return false;
+  }
+  const enable = spawnSync(
+    "systemctl",
+    ["--user", "enable", "openmail-openclaw-bridge.timer"],
+    { stdio: "ignore" },
+  );
+  if (enable.status !== 0) {
+    return false;
+  }
+  const action = configChanged ? "restart" : "start";
+  const run = spawnSync(
+    "systemctl",
+    ["--user", action, "openmail-openclaw-bridge.timer"],
+    { stdio: "ignore" },
+  );
+  return run.status === 0;
+}
+
 const CRON_MARKER = "# openmail-openclaw-bridge";
 
 function buildCronLine(params: {
@@ -703,32 +800,35 @@ function buildCronLine(params: {
   return `* * * * * . ${params.envFilePath} && OPENCLAW_HOOK_URL=${hookUrl} openmail poll bridge ${CRON_MARKER}`;
 }
 
-function installCronJob(cronLine: string): boolean {
+function installCronJob(cronLine: string): { ok: boolean; error?: string } {
+  const check = spawnSync("which", ["crontab"], { stdio: "ignore" });
+  if (check.status !== 0) {
+    return { ok: false, error: "crontab not found — install cron (e.g. `apt install cron`)" };
+  }
+
   const existing = spawnSync("crontab", ["-l"], { encoding: "utf8" });
   const currentLines = existing.status === 0 ? existing.stdout : "";
 
+  let newCrontab: string;
   if (currentLines.includes(CRON_MARKER)) {
-    const updated = currentLines
+    newCrontab = currentLines
       .split("\n")
       .map((line) => (line.includes(CRON_MARKER) ? cronLine : line))
       .join("\n");
-    const write = spawnSync("crontab", ["-"], {
-      input: updated,
-      stdio: ["pipe", "ignore", "ignore"],
-    });
-    return write.status === 0;
+  } else {
+    newCrontab =
+      currentLines.trimEnd() + (currentLines.trim() ? "\n" : "") + cronLine + "\n";
   }
 
-  const appended =
-    currentLines.trimEnd() +
-    (currentLines.trim() ? "\n" : "") +
-    cronLine +
-    "\n";
   const write = spawnSync("crontab", ["-"], {
-    input: appended,
-    stdio: ["pipe", "ignore", "ignore"],
+    input: newCrontab,
+    encoding: "utf8",
   });
-  return write.status === 0;
+  if (write.status !== 0) {
+    const stderr = write.stderr?.trim();
+    return { ok: false, error: stderr || `crontab exited with code ${write.status}` };
+  }
+  return { ok: true };
 }
 
 function removeCronJob(): void {

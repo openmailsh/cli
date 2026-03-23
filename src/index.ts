@@ -471,7 +471,7 @@ type SetupResult = {
     transportMode: "poll" | "websocket" | "webhook" | null;
     runBridge?: string;
     reminder?: string;
-    bridgeStatus?: "cron" | "systemd" | "launchd" | "manual" | "webhook" | "none";
+    bridgeStatus?: "systemd_timer" | "systemd" | "launchd_interval" | "launchd" | "cron" | "manual" | "webhook" | "none";
   };
 };
 
@@ -505,15 +505,19 @@ function printSetupSuccess(ctx: ReturnType<typeof ctxFromConfig>, data: SetupRes
   const bridgeStatusText =
     bridgeStatus === "none"
       ? "not needed (tool mode)"
-      : bridgeStatus === "cron"
-        ? "cron job (polls every 60s)"
-        : bridgeStatus === "webhook"
-          ? "webhook (you manage the endpoint)"
-          : bridgeStatus === "systemd"
-            ? "managed by systemd"
+      : bridgeStatus === "systemd_timer"
+        ? "systemd timer (polls every 60s)"
+        : bridgeStatus === "systemd"
+          ? "managed by systemd"
+          : bridgeStatus === "launchd_interval"
+            ? "launchd (polls every 60s)"
             : bridgeStatus === "launchd"
               ? "managed by launchd"
-              : "not running (manual start required)";
+              : bridgeStatus === "cron"
+                ? "cron job (polls every 60s)"
+                : bridgeStatus === "webhook"
+                  ? "webhook (you manage the endpoint)"
+                  : "not running (manual start required)";
 
   process.stdout.write(`${label("Mode:")} ${usageModeLabel}\n`);
   if (data.inbox?.address) {
