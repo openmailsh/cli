@@ -285,14 +285,20 @@ function printHelp(topic?: string) {
         "openmail setup",
         "",
         "Usage:",
-        "  setup [--mode websocket|webhook] [--openclaw-home <path>] [--hook-path </hooks/openmail>] [--hooks-token <token>] [--with-systemd] [--reconfigure]",
+        "  setup [--mode tool|notify|channel] [--transport poll|websocket|webhook]",
+        "  setup [--openclaw-home <path>] [--hook-path </hooks/openmail>] [--hooks-token <token>] [--with-systemd] [--reconfigure]",
         "  setup [--inbox-id <id>] [--mailbox-name <name>] [--display-name <sender>]",
         "  setup --reset [--force]",
         "",
-        "Runs idempotent OpenClaw integration setup. Prompts for inbox creation (if none) and mode. Uses systemd by default on Linux.",
+        "Modes:",
+        "  tool       Agent sends/reads email on demand (default)",
+        "  notify     Polls inbox and alerts when new email arrives",
+        "  channel    Inbound emails trigger the agent directly",
+        "",
+        "Runs idempotent OpenClaw integration setup. Prompts for inbox and mode selection.",
+        "Bridge (systemd/launchd) is only configured for notify and channel modes.",
         "--reconfigure re-prompts for interactive choices.",
         "--reset removes OpenMail setup files (requires double confirmation unless --force).",
-        "If no API key is available, setup starts browser pairing with one-time code (manual paste fallback).",
         "",
         ...globalFlags,
       ].join("\n"),
@@ -389,12 +395,13 @@ function printHelp(topic?: string) {
   if (usage === "openclaw") {
     process.stdout.write(
       [
-        "openmail openclaw",
+        "openmail openclaw (deprecated — use `openmail setup`)",
         "",
         "Subcommands:",
-        "  setup [--mode websocket|webhook] [--openclaw-home <path>] [--hook-path </hooks/openmail>] [--hooks-token <token>] [--with-systemd]",
+        "  setup [--mode tool|notify|channel] [--transport poll|websocket|webhook]",
+        "        [--openclaw-home <path>] [--hook-path </hooks/openmail>] [--hooks-token <token>] [--with-systemd]",
         "",
-        "Creates OpenClaw skill + env files and optionally a systemd bridge service.",
+        "Creates OpenClaw skill + env files and optionally a bridge service.",
         "",
         ...globalFlags,
       ].join("\n"),
@@ -460,10 +467,11 @@ type SetupResult = {
   inbox?: { id: string | null; address: string | null };
   files?: { skill: string; env: string; systemd: string | null };
   next?: {
-    mode: "websocket" | "webhook";
+    usageMode: "tool" | "notify" | "channel";
+    transportMode: "poll" | "websocket" | "webhook" | null;
     runBridge?: string;
     reminder?: string;
-    bridgeStatus?: "systemd" | "launchd" | "manual" | "webhook";
+    bridgeStatus?: "cron" | "systemd" | "launchd" | "manual" | "webhook" | "none";
   };
 };
 
@@ -474,8 +482,7 @@ function printSetupSuccess(ctx: ReturnType<typeof ctxFromConfig>, data: SetupRes
       : data.status === "already_configured"
         ? "✓ Already configured"
         : "✓ Setup complete";
-  const titleColor = "green";
-  const title = colorize(ctx, titleColor, titleText);
+  const title = colorize(ctx, "green", titleText);
   const label = (text: string) => colorize(ctx, "cyan", text);
   process.stdout.write(`${title}\n\n`);
   if (data.status === "reset_done") {
@@ -483,44 +490,56 @@ function printSetupSuccess(ctx: ReturnType<typeof ctxFromConfig>, data: SetupRes
     if (data.next?.reminder) {
       process.stdout.write(`${label("Reminder:")} ${data.next.reminder}\n`);
     }
-  } else {
-    const bridgeStatus = data.next?.bridgeStatus ?? (data.next?.mode === "webhook" ? "webhook" : "manual");
-    const bridgeStatusText =
-      bridgeStatus === "webhook"
-        ? "not required (webhook mode)"
-        : bridgeStatus === "systemd"
-          ? "managed by systemd"
-          : bridgeStatus === "launchd"
-            ? "managed by launchd"
-            : "not running (manual start required)";
-    const updatedCount = data.changedFiles?.length ?? 0;
+    return;
+  }
 
-    process.stdout.write(`${label("Mode:")} ${data.next?.mode ?? "websocket"}\n`);
-    if (data.inbox?.address) {
-      process.stdout.write(`${label("Inbox:")} ${data.inbox.address}\n`);
-    }
+  const usageMode = data.next?.usageMode ?? "tool";
+  const usageModeLabel =
+    usageMode === "tool"
+      ? "Tool (on demand)"
+      : usageMode === "notify"
+        ? "Tool + Notifications"
+        : "Full Channel";
+
+  const bridgeStatus = data.next?.bridgeStatus ?? "none";
+  const bridgeStatusText =
+    bridgeStatus === "none"
+      ? "not needed (tool mode)"
+      : bridgeStatus === "cron"
+        ? "cron job (polls every 60s)"
+        : bridgeStatus === "webhook"
+          ? "webhook (you manage the endpoint)"
+          : bridgeStatus === "systemd"
+            ? "managed by systemd"
+            : bridgeStatus === "launchd"
+              ? "managed by launchd"
+              : "not running (manual start required)";
+
+  process.stdout.write(`${label("Mode:")} ${usageModeLabel}\n`);
+  if (data.inbox?.address) {
+    process.stdout.write(`${label("Inbox:")} ${data.inbox.address}\n`);
+  }
+  if (bridgeStatus !== "none") {
     process.stdout.write(`${label("Bridge:")} ${bridgeStatusText}\n`);
-    if (ctx.verbose) {
-      process.stdout.write(`${label("Updated files:")} ${updatedCount}\n`);
-    }
+  }
+  if (ctx.verbose) {
+    process.stdout.write(`${label("Updated files:")} ${data.changedFiles?.length ?? 0}\n`);
+  }
 
-    let printedNext = false;
-    if (bridgeStatus === "manual" && data.next?.runBridge) {
-      process.stdout.write("\n");
-      process.stdout.write(`${label("Next:")} Run ${data.next.runBridge}\n`);
-      printedNext = true;
-    } else {
-      if (bridgeStatus === "webhook") {
-        process.stdout.write("\n");
-        process.stdout.write(`${label("Next:")} Configure your webhook receiver and OpenClaw hook forwarding\n`);
-        printedNext = true;
-      }
-    }
-    if (printedNext) {
-      process.stdout.write(`${label("Tip:")} Run 'openmail status' anytime\n`);
-    } else {
-      process.stdout.write(`\n${label("Tip:")} Run 'openmail status' anytime\n`);
-    }
+  let printedNext = false;
+  if (bridgeStatus === "manual" && data.next?.runBridge) {
+    process.stdout.write("\n");
+    process.stdout.write(`${label("Next:")} Run ${data.next.runBridge}\n`);
+    printedNext = true;
+  } else if (bridgeStatus === "webhook") {
+    process.stdout.write("\n");
+    process.stdout.write(`${label("Next:")} Configure your webhook receiver and OpenClaw hook forwarding\n`);
+    printedNext = true;
+  }
+  if (printedNext) {
+    process.stdout.write(`${label("Tip:")} Run 'openmail status' anytime\n`);
+  } else {
+    process.stdout.write(`\n${label("Tip:")} Run 'openmail status' anytime\n`);
   }
 }
 
@@ -546,8 +565,16 @@ function printStatusSummary(
           : bad("invalid")
     } [source: ${data.api.apiKeySource}]\n`,
   );
+  const usageModeLabel =
+    data.setup.usageMode === "tool"
+      ? "Tool (on demand)"
+      : data.setup.usageMode === "notify"
+        ? "Tool + Notifications"
+        : data.setup.usageMode === "channel"
+          ? "Full Channel"
+          : "unknown";
   process.stdout.write(
-    `${label("Mode:")} ${data.setup.mode}\n`,
+    `${label("Mode:")} ${usageModeLabel}${data.setup.transportMode ? ` (${data.setup.transportMode})` : ""}\n`,
   );
   process.stdout.write(
     `${label("Setup files:")} env=${data.setup.files.env ? "yes" : "no"}, skill=${data.setup.files.skill ? "yes" : "no"}, systemd=${data.setup.files.systemdUnit ? "yes" : "no"}\n`,

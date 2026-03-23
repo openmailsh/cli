@@ -6,6 +6,9 @@ export type CliState = {
   lastEventId?: string;
   defaultInboxId?: string;
   defaultInboxAddress?: string;
+  defaultUsageMode?: "tool" | "notify" | "channel";
+  defaultTransportMode?: "poll" | "websocket" | "webhook";
+  /** @deprecated Migrated to defaultUsageMode + defaultTransportMode */
   defaultSetupMode?: "websocket" | "webhook";
 };
 
