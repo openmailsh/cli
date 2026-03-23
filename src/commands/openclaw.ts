@@ -297,14 +297,17 @@ function buildSystemdUnit(params: { envFilePath: string; hookPath: string }): st
   return `[Unit]
 Description=OpenMail to OpenClaw WebSocket bridge
 After=network-online.target
+StartLimitIntervalSec=300
+StartLimitBurst=5
 
 [Service]
 Type=simple
 EnvironmentFile=${params.envFilePath}
 Environment=OPENCLAW_HOOK_URL=http://127.0.0.1:18789${params.hookPath}
 ExecStart=${process.execPath} ${scriptPath} ws bridge
-Restart=always
-RestartSec=3
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=10
 
 [Install]
 WantedBy=default.target

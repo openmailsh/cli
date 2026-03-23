@@ -1,8 +1,21 @@
 import WebSocket from "ws";
+import fs from "node:fs/promises";
+import { readFileSync, unlinkSync } from "node:fs";
+import path from "node:path";
 import type { CliContext } from "./output";
 import { logError, logInfo } from "./output";
 import { readBridgeState, writeBridgeState } from "./state";
 import { OpenClawForwarder } from "./openclaw-forwarder";
+
+const FATAL_CLOSE_CODES = new Set([
+  4001, // unauthorized / API key revoked
+  4003, // forbidden
+  4008, // connection limit exceeded
+]);
+
+const MAX_RETRIES = 20;
+const MIN_STABLE_CONNECTION_MS = 60_000;
+const SHUTDOWN_GRACE_MS = 5_000;
 
 type WsBridgeOptions = {
   baseUrl: string;
@@ -14,7 +27,16 @@ type WsBridgeOptions = {
   eventTypes?: string[];
 };
 
+type ConnectResult = {
+  fatal: boolean;
+  reason?: string;
+  connectedMs: number;
+};
+
 export async function runWsBridge(ctx: CliContext, options: WsBridgeOptions) {
+  const lockPath = path.join(path.dirname(options.statePath), "bridge.lock");
+  await acquirePidLock(lockPath);
+
   const state = await readBridgeState(options.statePath);
   const forwarder = new OpenClawForwarder({
     hookUrl: options.hookUrl,
@@ -27,26 +49,67 @@ export async function runWsBridge(ctx: CliContext, options: WsBridgeOptions) {
 
   let retries = 0;
   let stopped = false;
-  const stop = () => {
+  let activeWs: WebSocket | null = null;
+
+  const shutdown = () => {
     stopped = true;
+    if (activeWs) {
+      try {
+        activeWs.close();
+      } catch {}
+    }
+    setTimeout(() => {
+      releasePidLock(lockPath);
+      process.exit(0);
+    }, SHUTDOWN_GRACE_MS).unref();
   };
-  process.on("SIGINT", stop);
-  process.on("SIGTERM", stop);
+  process.on("SIGINT", shutdown);
+  process.on("SIGTERM", shutdown);
 
-  while (!stopped) {
-    const delayMs = Math.min(1000 * Math.pow(2, retries), 30000);
-    if (retries > 0) {
-      logInfo(ctx, `Reconnecting in ${delayMs}ms`);
-      await sleep(delayMs);
-    }
+  try {
+    while (!stopped) {
+      if (retries > 0) {
+        const delayMs = Math.min(1_000 * 2 ** retries, 30_000);
+        logInfo(ctx, `Reconnecting in ${delayMs}ms (attempt ${retries}/${MAX_RETRIES})`);
+        await sleep(delayMs);
+        if (stopped) break;
+      }
 
-    try {
-      await connectOnce(ctx, `${wsUrl}/v1/ws`, options, state, forwarder, () => stopped);
-      retries = 0;
-    } catch (err) {
-      retries += 1;
-      logError(ctx, `Bridge connection error: ${String(err)}`);
+      try {
+        const result = await connectOnce(
+          ctx,
+          `${wsUrl}/v1/ws`,
+          options,
+          state,
+          forwarder,
+          () => stopped,
+          (ws) => {
+            activeWs = ws;
+          },
+        );
+
+        if (result.fatal) {
+          logError(ctx, `Fatal: ${result.reason ?? "non-retryable server error"}. Exiting.`);
+          break;
+        }
+
+        if (result.connectedMs >= MIN_STABLE_CONNECTION_MS) {
+          retries = 0;
+        } else {
+          retries += 1;
+        }
+      } catch (err) {
+        retries += 1;
+        logError(ctx, `Bridge connection error: ${String(err)}`);
+      }
+
+      if (retries >= MAX_RETRIES) {
+        logError(ctx, `Giving up after ${MAX_RETRIES} consecutive reconnect failures.`);
+        break;
+      }
     }
+  } finally {
+    releasePidLock(lockPath);
   }
 
   logInfo(ctx, "Bridge stopped");
@@ -59,24 +122,31 @@ async function connectOnce(
   state: { lastEventId?: string },
   forwarder: OpenClawForwarder,
   isStopped: () => boolean,
-) {
-  await new Promise<void>((resolve, reject) => {
+  onWsCreated: (ws: WebSocket) => void,
+): Promise<ConnectResult> {
+  return new Promise<ConnectResult>((resolve, reject) => {
+    const startedAt = Date.now();
     const ws = new WebSocket(wsEndpoint, {
       headers: {
         Authorization: `Bearer ${options.apiKey}`,
       },
     });
 
+    onWsCreated(ws);
+
     let closed = false;
-    const finish = (err?: Error) => {
+    const finish = (err?: Error, fatal = false, reason?: string) => {
       if (closed) return;
       closed = true;
       ws.removeAllListeners();
-      ws.close();
+      try {
+        ws.close();
+      } catch {}
+      const connectedMs = Date.now() - startedAt;
       if (err) {
         reject(err);
       } else {
-        resolve();
+        resolve({ fatal, reason, connectedMs });
       }
     };
 
@@ -138,14 +208,65 @@ async function connectOnce(
     });
 
     ws.on("close", (code, reason) => {
-      logInfo(ctx, `WebSocket closed (${code}) ${reason.toString()}`);
-      finish();
+      const reasonStr = reason.toString();
+      logInfo(ctx, `WebSocket closed (${code}) ${reasonStr}`);
+      if (FATAL_CLOSE_CODES.has(code)) {
+        finish(undefined, true, `${code} ${reasonStr}`);
+      } else {
+        finish();
+      }
     });
 
     ws.on("error", (err) => {
       finish(err instanceof Error ? err : new Error(String(err)));
     });
   });
+}
+
+async function acquirePidLock(lockPath: string): Promise<void> {
+  await fs.mkdir(path.dirname(lockPath), { recursive: true });
+
+  let existingPid: number | undefined;
+  try {
+    const content = await fs.readFile(lockPath, "utf8");
+    existingPid = parseInt(content.trim(), 10);
+  } catch (err: unknown) {
+    if ((err as NodeJS.ErrnoException).code !== "ENOENT") throw err;
+  }
+
+  if (
+    existingPid !== undefined &&
+    !isNaN(existingPid) &&
+    existingPid !== process.pid &&
+    isProcessAlive(existingPid)
+  ) {
+    throw new Error(
+      `Another bridge instance is already running (pid ${existingPid}). ` +
+        `Remove ${lockPath} if this is a stale lock.`,
+    );
+  }
+
+  await fs.writeFile(lockPath, String(process.pid), "utf8");
+}
+
+function releasePidLock(lockPath: string): void {
+  try {
+    const content = readFileSync(lockPath, "utf8");
+    if (parseInt(content.trim(), 10) === process.pid) {
+      unlinkSync(lockPath);
+    }
+  } catch {
+    // best-effort cleanup
+  }
+}
+
+function isProcessAlive(pid: number): boolean {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 function sleep(ms: number) {
