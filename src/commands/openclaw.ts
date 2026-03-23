@@ -38,8 +38,11 @@ export async function runOpenClawCommand(params: {
     process.env.OPENCLAW_HOME ??
     path.join(homeDir, ".openclaw");
   const hooksToken =
-    getStringFlag(params.parsed.flags, "hooks-token") ?? process.env.OPENCLAW_HOOK_TOKEN ?? "";
-  const hookPath = getStringFlag(params.parsed.flags, "hook-path") ?? "/hooks/openmail";
+    getStringFlag(params.parsed.flags, "hooks-token") ??
+    process.env.OPENCLAW_HOOK_TOKEN ??
+    "";
+  const hookPath =
+    getStringFlag(params.parsed.flags, "hook-path") ?? "/hooks/openmail";
   const withSystemd =
     getBooleanFlag(params.parsed.flags, "with-systemd") ||
     process.env.OPENMAIL_SETUP_SYSTEMD === "1";
@@ -57,16 +60,24 @@ export async function runOpenClawCommand(params: {
     throw new Error("missing API key (set --api-key or OPENMAIL_API_KEY)");
   }
   if (getBooleanFlag(params.parsed.flags, "check")) {
-    throw new Error("`openmail setup --check` was removed. Use `openmail status`.");
+    throw new Error(
+      "`openmail setup --check` was removed. Use `openmail status`.",
+    );
   }
   const reconfigure = getBooleanFlag(params.parsed.flags, "reconfigure");
-  const requestedMode = getStringFlag(params.parsed.flags, "mode") ?? process.env.OPENMAIL_SETUP_MODE;
-  const requestedTransport = getStringFlag(params.parsed.flags, "transport") ?? process.env.OPENMAIL_SETUP_TRANSPORT;
+  const requestedMode =
+    getStringFlag(params.parsed.flags, "mode") ??
+    process.env.OPENMAIL_SETUP_MODE;
+  const requestedTransport =
+    getStringFlag(params.parsed.flags, "transport") ??
+    process.env.OPENMAIL_SETUP_TRANSPORT;
   const state = await readCliState(params.statePath);
 
   // Migrate legacy state: old defaultSetupMode mapped to transport, default usage to tool
-  const defaultUsageMode = state.defaultUsageMode ?? (state.defaultSetupMode ? "notify" : undefined);
-  const defaultTransportMode = state.defaultTransportMode ?? state.defaultSetupMode;
+  const defaultUsageMode =
+    state.defaultUsageMode ?? (state.defaultSetupMode ? "notify" : undefined);
+  const defaultTransportMode =
+    state.defaultTransportMode ?? state.defaultSetupMode;
 
   const usageMode = await resolveUsageMode({
     requestedMode,
@@ -82,7 +93,8 @@ export async function runOpenClawCommand(params: {
       requestedTransport,
       ctx: params.ctx,
       defaultTransport: defaultTransportMode,
-      allowPrompt: (reconfigure || !defaultTransportMode) && !requestedTransport,
+      allowPrompt:
+        (reconfigure || !defaultTransportMode) && !requestedTransport,
     });
   }
 
@@ -95,10 +107,7 @@ export async function runOpenClawCommand(params: {
 
   const skillDir = path.join(openclawHome, "skills", "openmail");
   const skillPath = path.join(skillDir, "SKILL.md");
-  const skillWrite = await writeFileIfChanged(
-    skillPath,
-    buildSkillMarkdown(),
-  );
+  const skillWrite = await writeFileIfChanged(skillPath, buildSkillMarkdown());
 
   const envFilePath = path.join(openclawHome, "openmail.env");
   const envLines = [
@@ -108,7 +117,10 @@ export async function runOpenClawCommand(params: {
     ...(usageMode !== "tool" ? [`OPENMAIL_MODE=${usageMode}`] : []),
     ...(hooksToken ? [`OPENCLAW_HOOK_TOKEN=${hooksToken}`] : []),
   ];
-  const envWrite = await writeFileIfChanged(envFilePath, envLines.join("\n") + "\n");
+  const envWrite = await writeFileIfChanged(
+    envFilePath,
+    envLines.join("\n") + "\n",
+  );
 
   const jsonSnippet = {
     skills: {
@@ -143,7 +155,9 @@ export async function runOpenClawCommand(params: {
   let systemdPath: string | undefined;
   let systemdWrite: { changed: boolean; existed: boolean } | undefined;
   const useSystemd =
-    needsBridge && transportMode === "websocket" && (withSystemd || canManageSystemdUser());
+    needsBridge &&
+    transportMode === "websocket" &&
+    (withSystemd || canManageSystemdUser());
   if (useSystemd) {
     const serviceDir = path.join(homeDir, ".config", "systemd", "user");
     systemdPath = path.join(serviceDir, "openmail-openclaw-bridge.service");
@@ -153,7 +167,10 @@ export async function runOpenClawCommand(params: {
     );
   }
   if (withSystemd && transportMode !== "websocket") {
-    logError(params.ctx, "`--with-systemd` only applies to websocket transport.");
+    logError(
+      params.ctx,
+      "`--with-systemd` only applies to websocket transport.",
+    );
   }
 
   let systemdManaged = false;
@@ -176,10 +193,16 @@ export async function runOpenClawCommand(params: {
   let launchdPath: string | undefined;
   let launchdWrite: { changed: boolean; existed: boolean } | undefined;
   const useLaunchd =
-    needsBridge && transportMode === "websocket" && !useSystemd && process.platform === "darwin";
+    needsBridge &&
+    transportMode === "websocket" &&
+    !useSystemd &&
+    process.platform === "darwin";
   if (useLaunchd) {
     const launchAgentsDir = path.join(homeDir, "Library", "LaunchAgents");
-    launchdPath = path.join(launchAgentsDir, "sh.openmail.openclaw-bridge.plist");
+    launchdPath = path.join(
+      launchAgentsDir,
+      "sh.openmail.openclaw-bridge.plist",
+    );
     launchdWrite = await writeFileIfChanged(
       launchdPath,
       buildLaunchdPlist({ envFilePath, hookPath }),
@@ -475,7 +498,10 @@ Reference: https://docs.openmail.sh/api-reference
 `;
 }
 
-function buildSystemdUnit(params: { envFilePath: string; hookPath: string }): string {
+function buildSystemdUnit(params: {
+  envFilePath: string;
+  hookPath: string;
+}): string {
   const scriptPath = process.argv[1] ?? "packages/cli/dist/index.js";
   return `[Unit]
 Description=OpenMail to OpenClaw WebSocket bridge
@@ -506,13 +532,26 @@ async function runResetSetup(params: {
   const targets = {
     env: path.join(params.openclawHome, "openmail.env"),
     skillDir: path.join(params.openclawHome, "skills", "openmail"),
-    systemd: path.join(os.homedir(), ".config", "systemd", "user", "openmail-openclaw-bridge.service"),
-    launchd: path.join(os.homedir(), "Library", "LaunchAgents", "sh.openmail.openclaw-bridge.plist"),
+    systemd: path.join(
+      os.homedir(),
+      ".config",
+      "systemd",
+      "user",
+      "openmail-openclaw-bridge.service",
+    ),
+    launchd: path.join(
+      os.homedir(),
+      "Library",
+      "LaunchAgents",
+      "sh.openmail.openclaw-bridge.plist",
+    ),
   };
 
   if (!params.force) {
     if (!process.stdin.isTTY || !process.stdout.isTTY) {
-      throw new Error("refusing to reset in non-interactive mode. Re-run with --force.");
+      throw new Error(
+        "refusing to reset in non-interactive mode. Re-run with --force.",
+      );
     }
     const accepted = await confirm({
       message: "This will remove OpenMail setup files from OpenClaw. Continue?",
@@ -572,7 +611,10 @@ async function removeIfExists(
   }
 }
 
-function buildLaunchdPlist(params: { envFilePath: string; hookPath: string }): string {
+function buildLaunchdPlist(params: {
+  envFilePath: string;
+  hookPath: string;
+}): string {
   const scriptPath = process.argv[1] ?? "packages/cli/dist/index.js";
   const hookUrl = `http://127.0.0.1:18789${params.hookPath}`;
   return `<?xml version="1.0" encoding="UTF-8"?>
@@ -600,11 +642,16 @@ function buildLaunchdPlist(params: { envFilePath: string; hookPath: string }): s
 `;
 }
 
-function enableLaunchdBridge(plistPath: string, configChanged: boolean): boolean {
+function enableLaunchdBridge(
+  plistPath: string,
+  configChanged: boolean,
+): boolean {
   if (configChanged) {
     spawnSync("launchctl", ["unload", plistPath], { stdio: "ignore" });
   }
-  const load = spawnSync("launchctl", ["load", "-w", plistPath], { stdio: "ignore" });
+  const load = spawnSync("launchctl", ["load", "-w", plistPath], {
+    stdio: "ignore",
+  });
   return load.status === 0;
 }
 
@@ -648,7 +695,10 @@ function enableSystemdBridge(configChanged: boolean): boolean {
 
 const CRON_MARKER = "# openmail-openclaw-bridge";
 
-function buildCronLine(params: { envFilePath: string; hookPath: string }): string {
+function buildCronLine(params: {
+  envFilePath: string;
+  hookPath: string;
+}): string {
   const hookUrl = `http://127.0.0.1:18789${params.hookPath}`;
   return `* * * * * . ${params.envFilePath} && OPENCLAW_HOOK_URL=${hookUrl} openmail poll bridge ${CRON_MARKER}`;
 }
@@ -662,12 +712,22 @@ function installCronJob(cronLine: string): boolean {
       .split("\n")
       .map((line) => (line.includes(CRON_MARKER) ? cronLine : line))
       .join("\n");
-    const write = spawnSync("crontab", ["-"], { input: updated, stdio: ["pipe", "ignore", "ignore"] });
+    const write = spawnSync("crontab", ["-"], {
+      input: updated,
+      stdio: ["pipe", "ignore", "ignore"],
+    });
     return write.status === 0;
   }
 
-  const appended = currentLines.trimEnd() + (currentLines.trim() ? "\n" : "") + cronLine + "\n";
-  const write = spawnSync("crontab", ["-"], { input: appended, stdio: ["pipe", "ignore", "ignore"] });
+  const appended =
+    currentLines.trimEnd() +
+    (currentLines.trim() ? "\n" : "") +
+    cronLine +
+    "\n";
+  const write = spawnSync("crontab", ["-"], {
+    input: appended,
+    stdio: ["pipe", "ignore", "ignore"],
+  });
   return write.status === 0;
 }
 
@@ -678,7 +738,10 @@ function removeCronJob(): void {
     .split("\n")
     .filter((line) => !line.includes(CRON_MARKER))
     .join("\n");
-  spawnSync("crontab", ["-"], { input: filtered, stdio: ["pipe", "ignore", "ignore"] });
+  spawnSync("crontab", ["-"], {
+    input: filtered,
+    stdio: ["pipe", "ignore", "ignore"],
+  });
 }
 
 async function ensureInboxForSetup(params: {
@@ -689,14 +752,19 @@ async function ensureInboxForSetup(params: {
 }): Promise<Inbox> {
   const explicitInboxId = getStringFlag(params.parsed.flags, "inbox-id");
   if (explicitInboxId) {
-    const inbox = (await params.client.get(`/v1/inboxes/${encodeURIComponent(explicitInboxId)}`)) as Inbox;
+    const inbox = (await params.client.get(
+      `/v1/inboxes/${encodeURIComponent(explicitInboxId)}`,
+    )) as Inbox;
     await persistDefaultInbox(params.statePath, inbox);
     return inbox;
   }
 
   const mailboxName = getStringFlag(params.parsed.flags, "mailbox-name");
   const displayName = getStringFlag(params.parsed.flags, "display-name");
-  const list = (await params.client.get("/v1/inboxes", { limit: 100, offset: 0 })) as {
+  const list = (await params.client.get("/v1/inboxes", {
+    limit: 100,
+    offset: 0,
+  })) as {
     data?: Inbox[];
   };
   const inboxes = list.data ?? [];
@@ -747,7 +815,10 @@ async function resolveUsageMode(params: {
   }
 
   if (!process.stdin.isTTY || !process.stdout.isTTY) {
-    logInfo(params.ctx, "No interactive terminal detected. Defaulting to tool mode.");
+    logInfo(
+      params.ctx,
+      "No interactive terminal detected. Defaulting to tool mode.",
+    );
     return params.defaultMode ?? "tool";
   }
 
@@ -756,18 +827,15 @@ async function resolveUsageMode(params: {
     options: [
       {
         value: "tool",
-        label: "Tool",
-        hint: "agent sends and reads email on demand",
+        label: "Tool — send and read email on demand",
       },
       {
         value: "notify",
-        label: "Tool + Notifications",
-        hint: "polls inbox, alerts when new email arrives",
+        label: "Tool + Notifications — polls inbox, alerts on new email",
       },
       {
         value: "channel",
-        label: "Full Channel",
-        hint: "inbound emails trigger the agent directly",
+        label: "Full Channel — autonomous replies without human intervention",
       },
     ],
     initialValue: params.defaultMode ?? "tool",
@@ -796,7 +864,10 @@ async function resolveTransportMode(params: {
   }
 
   if (!process.stdin.isTTY || !process.stdout.isTTY) {
-    logInfo(params.ctx, "No interactive terminal detected. Defaulting transport to poll.");
+    logInfo(
+      params.ctx,
+      "No interactive terminal detected. Defaulting transport to poll.",
+    );
     return params.defaultTransport ?? "poll";
   }
 
@@ -805,18 +876,15 @@ async function resolveTransportMode(params: {
     options: [
       {
         value: "poll",
-        label: "Poll",
-        hint: "recommended — checks inbox on a timer (every 60s)",
+        label: "Poll — checks inbox on a cron timer every 60s (recommended)",
       },
       {
         value: "websocket",
-        label: "WebSocket",
-        hint: "persistent connection, real-time delivery",
+        label: "WebSocket — persistent connection, real-time delivery",
       },
       {
         value: "webhook",
-        label: "Webhook",
-        hint: "you manage the HTTP endpoint",
+        label: "Webhook — you manage the HTTP endpoint",
       },
     ],
     initialValue: params.defaultTransport ?? "poll",
