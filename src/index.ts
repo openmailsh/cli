@@ -285,18 +285,18 @@ function printHelp(topic?: string) {
         "openmail setup",
         "",
         "Usage:",
-        "  setup [--mode tool|notify|channel] [--transport poll|websocket|webhook]",
+        "  setup [--mode tool|notify|channel]",
         "  setup [--openclaw-home <path>] [--hook-path </hooks/openmail>] [--hooks-token <token>] [--with-systemd] [--reconfigure]",
         "  setup [--inbox-id <id>] [--mailbox-name <name>] [--display-name <sender>]",
         "  setup --reset [--force]",
         "",
         "Modes:",
         "  tool       Agent sends/reads email on demand (default)",
-        "  notify     Polls inbox and alerts when new email arrives",
-        "  channel    Inbound emails trigger the agent directly",
+        "  notify     Real-time alerts when new email arrives (WebSocket bridge)",
+        "  channel    Inbound emails trigger the agent directly (WebSocket bridge)",
         "",
         "Runs idempotent OpenClaw integration setup. Prompts for inbox and mode selection.",
-        "Bridge (systemd/launchd) is only configured for notify and channel modes.",
+        "A WebSocket bridge (systemd/launchd) is auto-configured for notify and channel modes.",
         "--reconfigure re-prompts for interactive choices.",
         "--reset removes OpenMail setup files (requires double confirmation unless --force).",
         "",
@@ -398,10 +398,10 @@ function printHelp(topic?: string) {
         "openmail openclaw (deprecated — use `openmail setup`)",
         "",
         "Subcommands:",
-        "  setup [--mode tool|notify|channel] [--transport poll|websocket|webhook]",
+        "  setup [--mode tool|notify|channel]",
         "        [--openclaw-home <path>] [--hook-path </hooks/openmail>] [--hooks-token <token>] [--with-systemd]",
         "",
-        "Creates OpenClaw skill + env files and optionally a bridge service.",
+        "Creates OpenClaw skill + env files and optionally a WebSocket bridge service.",
         "",
         ...globalFlags,
       ].join("\n"),
@@ -468,10 +468,9 @@ type SetupResult = {
   files?: { skill: string; env: string; systemd: string | null };
   next?: {
     usageMode: "tool" | "notify" | "channel";
-    transportMode: "poll" | "websocket" | "webhook" | null;
     runBridge?: string;
     reminder?: string;
-    bridgeStatus?: "systemd_timer" | "systemd" | "launchd_interval" | "launchd" | "cron" | "manual" | "webhook" | "none";
+    bridgeStatus?: "systemd" | "launchd" | "manual" | "none";
   };
 };
 
@@ -505,19 +504,11 @@ function printSetupSuccess(ctx: ReturnType<typeof ctxFromConfig>, data: SetupRes
   const bridgeStatusText =
     bridgeStatus === "none"
       ? "not needed (tool mode)"
-      : bridgeStatus === "systemd_timer"
-        ? "systemd timer (polls every 60s)"
-        : bridgeStatus === "systemd"
-          ? "managed by systemd"
-          : bridgeStatus === "launchd_interval"
-            ? "launchd (polls every 60s)"
-            : bridgeStatus === "launchd"
-              ? "managed by launchd"
-              : bridgeStatus === "cron"
-                ? "cron job (polls every 60s)"
-                : bridgeStatus === "webhook"
-                  ? "webhook (you manage the endpoint)"
-                  : "not running (manual start required)";
+      : bridgeStatus === "systemd"
+        ? "managed by systemd (WebSocket)"
+        : bridgeStatus === "launchd"
+          ? "managed by launchd (WebSocket)"
+          : "not running (manual start required)";
 
   process.stdout.write(`${label("Mode:")} ${usageModeLabel}\n`);
   if (data.inbox?.address) {
@@ -530,17 +521,9 @@ function printSetupSuccess(ctx: ReturnType<typeof ctxFromConfig>, data: SetupRes
     process.stdout.write(`${label("Updated files:")} ${data.changedFiles?.length ?? 0}\n`);
   }
 
-  let printedNext = false;
   if (bridgeStatus === "manual" && data.next?.runBridge) {
     process.stdout.write("\n");
     process.stdout.write(`${label("Next:")} Run ${data.next.runBridge}\n`);
-    printedNext = true;
-  } else if (bridgeStatus === "webhook") {
-    process.stdout.write("\n");
-    process.stdout.write(`${label("Next:")} Configure your webhook receiver and OpenClaw hook forwarding\n`);
-    printedNext = true;
-  }
-  if (printedNext) {
     process.stdout.write(`${label("Tip:")} Run 'openmail status' anytime\n`);
   } else {
     process.stdout.write(`\n${label("Tip:")} Run 'openmail status' anytime\n`);
@@ -577,9 +560,7 @@ function printStatusSummary(
         : data.setup.usageMode === "channel"
           ? "Full Channel"
           : "unknown";
-  process.stdout.write(
-    `${label("Mode:")} ${usageModeLabel}${data.setup.transportMode ? ` (${data.setup.transportMode})` : ""}\n`,
-  );
+  process.stdout.write(`${label("Mode:")} ${usageModeLabel}\n`);
   process.stdout.write(
     `${label("Setup files:")} env=${data.setup.files.env ? "yes" : "no"}, skill=${data.setup.files.skill ? "yes" : "no"}, systemd=${data.setup.files.systemdUnit ? "yes" : "no"}\n`,
   );

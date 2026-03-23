@@ -7,8 +7,7 @@ export type CliState = {
   defaultInboxId?: string;
   defaultInboxAddress?: string;
   defaultUsageMode?: "tool" | "notify" | "channel";
-  defaultTransportMode?: "poll" | "websocket" | "webhook";
-  /** @deprecated Migrated to defaultUsageMode + defaultTransportMode */
+  /** @deprecated Migrated to defaultUsageMode */
   defaultSetupMode?: "websocket" | "webhook";
 };
 

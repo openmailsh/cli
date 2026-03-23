@@ -18,7 +18,6 @@ export type StatusResult = {
   };
   setup: {
     usageMode: "tool" | "notify" | "channel" | "unknown";
-    transportMode: "poll" | "websocket" | "webhook" | null;
     openclawHome: string;
     files: {
       env: boolean;
@@ -92,7 +91,6 @@ export async function runStatusCommand(params: {
     },
     setup: {
       usageMode: state.defaultUsageMode ?? (state.defaultSetupMode ? "notify" : "unknown"),
-      transportMode: state.defaultTransportMode ?? state.defaultSetupMode ?? null,
       openclawHome,
       files: {
         env: envExists,
