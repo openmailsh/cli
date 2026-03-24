@@ -8,6 +8,7 @@ import { runThreadsCommand } from "./commands/threads";
 import { runSendCommand } from "./commands/send";
 import { runInitCommand } from "./commands/init";
 import {
+  BridgeConfigError,
   ctxFromConfig,
   resolveBridgeConfig,
   resolveGlobalConfig,
@@ -57,9 +58,19 @@ async function main() {
       globalConfig.apiKey ??
       (await readCliState(globalConfig.statePath)).savedApiKey;
     if (!apiKey) {
-      throw new Error("missing API key (set --api-key or OPENMAIL_API_KEY)");
+      logError(ctx, "missing API key (set --api-key or OPENMAIL_API_KEY)");
+      process.exit(0);
     }
-    const bridge = resolveBridgeConfig(parsed, globalConfig.statePath);
+    let bridge;
+    try {
+      bridge = resolveBridgeConfig(parsed, globalConfig.statePath);
+    } catch (err) {
+      if (err instanceof BridgeConfigError) {
+        logError(ctx, err.message);
+        process.exit(0);
+      }
+      throw err;
+    }
     await runWsBridge(ctx, {
       baseUrl: globalConfig.baseUrl,
       apiKey,

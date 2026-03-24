@@ -1,5 +1,5 @@
 import fs from "node:fs/promises";
-import { readFileSync } from "node:fs";
+import { readFileSync, unlinkSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { spawn, spawnSync } from "node:child_process";
@@ -395,7 +395,7 @@ function buildSystemdUnit(params: {
 Description=OpenMail to OpenClaw WebSocket bridge
 After=network-online.target
 StartLimitIntervalSec=300
-StartLimitBurst=5
+StartLimitBurst=3
 
 [Service]
 Type=simple
@@ -405,6 +405,7 @@ ExecStart=${process.execPath} ${scriptPath} ws bridge
 Restart=on-failure
 RestartSec=5
 TimeoutStopSec=10
+KillMode=control-group
 
 [Install]
 WantedBy=default.target
@@ -441,6 +442,9 @@ async function setupBridgeDaemon(params: {
       "systemd",
       "user",
     );
+
+    cleanupLegacyTimer(serviceDir);
+
     const systemdPath = path.join(
       serviceDir,
       "openmail-openclaw-bridge.service",
@@ -810,6 +814,35 @@ function disableSystemdBridgeForReset(): void {
       stdio: "ignore",
     },
   );
+  spawnSync(
+    "systemctl",
+    ["--user", "disable", "--now", "openmail-openclaw-bridge.timer"],
+    {
+      stdio: "ignore",
+    },
+  );
+}
+
+function cleanupLegacyTimer(serviceDir: string): void {
+  const timerPath = path.join(
+    serviceDir,
+    "openmail-openclaw-bridge.timer",
+  );
+  try {
+    readFileSync(timerPath);
+  } catch {
+    return;
+  }
+  spawnSync(
+    "systemctl",
+    ["--user", "disable", "--now", "openmail-openclaw-bridge.timer"],
+    { stdio: "ignore" },
+  );
+  try {
+    unlinkSync(timerPath);
+  } catch {
+    // best-effort
+  }
 }
 
 async function ensureInboxForSetup(params: {

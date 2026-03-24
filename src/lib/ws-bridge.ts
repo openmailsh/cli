@@ -240,10 +240,10 @@ async function acquirePidLock(lockPath: string): Promise<void> {
     existingPid !== process.pid &&
     isProcessAlive(existingPid)
   ) {
-    throw new Error(
-      `Another bridge instance is already running (pid ${existingPid}). ` +
-        `Remove ${lockPath} if this is a stale lock.`,
+    process.stderr.write(
+      `Bridge already running (pid ${existingPid}). Exiting.\n`,
     );
+    process.exit(0);
   }
 
   await fs.writeFile(lockPath, String(process.pid), "utf8");
