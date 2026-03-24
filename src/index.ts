@@ -470,7 +470,9 @@ type SetupResult = {
     usageMode: "tool" | "notify" | "channel";
     runBridge?: string;
     reminder?: string;
-    bridgeStatus?: "systemd" | "launchd" | "manual" | "none";
+    bridgeStatus?: "systemd" | "launchd" | "process" | "manual" | "none";
+    bridgePid?: number;
+    persistHint?: string;
   };
 };
 
@@ -508,7 +510,9 @@ function printSetupSuccess(ctx: ReturnType<typeof ctxFromConfig>, data: SetupRes
         ? "managed by systemd (WebSocket)"
         : bridgeStatus === "launchd"
           ? "managed by launchd (WebSocket)"
-          : "not running (manual start required)";
+          : bridgeStatus === "process"
+            ? `running (pid ${data.next?.bridgePid ?? "?"})`
+            : "not running (manual start required)";
 
   process.stdout.write(`${label("Mode:")} ${usageModeLabel}\n`);
   if (data.inbox?.address) {
@@ -521,10 +525,17 @@ function printSetupSuccess(ctx: ReturnType<typeof ctxFromConfig>, data: SetupRes
     process.stdout.write(`${label("Updated files:")} ${data.changedFiles?.length ?? 0}\n`);
   }
 
-  if (bridgeStatus === "manual" && data.next?.runBridge) {
-    process.stdout.write("\n");
-    process.stdout.write(`${label("Next:")} Run ${data.next.runBridge}\n`);
+  if (bridgeStatus === "process") {
+    process.stdout.write(`\n${label("Note:")} Bridge started but will not survive a reboot.\n`);
+    if (data.next?.persistHint) {
+      process.stdout.write(`${label("Make permanent:")} ${data.next.persistHint}\n`);
+    }
+    process.stdout.write(`${label("Log:")} /tmp/openmail-bridge.log\n`);
     process.stdout.write(`${label("Tip:")} Run 'openmail status' anytime\n`);
+  } else if (bridgeStatus === "manual" && data.next?.runBridge) {
+    process.stdout.write("\n");
+    process.stdout.write(`${label("Run:")}\n  ${data.next.runBridge}\n`);
+    process.stdout.write(`\n${label("Tip:")} Run 'openmail status' anytime\n`);
   } else {
     process.stdout.write(`\n${label("Tip:")} Run 'openmail status' anytime\n`);
   }
