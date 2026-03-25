@@ -208,14 +208,14 @@ async function mergeSkillIntoOpenClawConfig(
   // --- hook mapping for POST /hooks/openmail ---
   if (opts.registerHookMapping) {
     const hooks = (config.hooks ?? {}) as Record<string, unknown>;
-    const mappings = (Array.isArray(hooks.mappings) ? hooks.mappings : []) as Record<string, unknown>[];
+    const mappings = (
+      Array.isArray(hooks.mappings) ? hooks.mappings : []
+    ) as Record<string, unknown>[];
 
-    const idx = mappings.findIndex(
-      (m) => {
-        const match = m.match as Record<string, unknown> | undefined;
-        return match?.path === "openmail";
-      },
-    );
+    const idx = mappings.findIndex((m) => {
+      const match = m.match as Record<string, unknown> | undefined;
+      return match?.path === "openmail";
+    });
 
     const openMailMapping: Record<string, unknown> = {
       match: { path: "openmail" },
@@ -244,16 +244,17 @@ async function mergeSkillIntoOpenClawConfig(
     return false;
   }
 
-  await fs.writeFile(configPath, JSON.stringify(config, null, 2) + "\n", "utf8");
+  await fs.writeFile(
+    configPath,
+    JSON.stringify(config, null, 2) + "\n",
+    "utf8",
+  );
   return true;
 }
 
 function readOpenClawHookToken(openclawHome: string): string {
   try {
-    const raw = readFileSync(
-      path.join(openclawHome, "openclaw.json"),
-      "utf8",
-    );
+    const raw = readFileSync(path.join(openclawHome, "openclaw.json"), "utf8");
     const config = JSON.parse(raw) as {
       hooks?: { token?: string };
     };
@@ -460,15 +461,9 @@ async function setupBridgeDaemon(params: {
   }
 
   // 1. Try systemd (Linux)
-  const hasSystemd =
-    params.withSystemd || canManageSystemdUser();
+  const hasSystemd = params.withSystemd || canManageSystemdUser();
   if (hasSystemd) {
-    const serviceDir = path.join(
-      params.homeDir,
-      ".config",
-      "systemd",
-      "user",
-    );
+    const serviceDir = path.join(params.homeDir, ".config", "systemd", "user");
 
     cleanupLegacyTimer(serviceDir);
 
@@ -635,11 +630,9 @@ async function tryEnableLingerInteractive(ctx: CliContext): Promise<boolean> {
     return false;
   }
 
-  const withSudo = spawnSync(
-    "sudo",
-    ["loginctl", "enable-linger", user],
-    { stdio: "inherit" },
-  );
+  const withSudo = spawnSync("sudo", ["loginctl", "enable-linger", user], {
+    stdio: "inherit",
+  });
   if (withSudo.status === 0) {
     logInfo(ctx, "Enabled systemd linger for persistent user services.");
     return true;
@@ -793,9 +786,10 @@ function canManageSystemdUser(): boolean {
   return check.status === 0;
 }
 
-function enableSystemdBridge(
-  configChanged: boolean,
-): { ok: boolean; needsLinger?: boolean } {
+function enableSystemdBridge(configChanged: boolean): {
+  ok: boolean;
+  needsLinger?: boolean;
+} {
   const reload = spawnSync("systemctl", ["--user", "daemon-reload"], {
     encoding: "utf8",
   });
@@ -851,10 +845,7 @@ function disableSystemdBridgeForReset(): void {
 }
 
 function cleanupLegacyTimer(serviceDir: string): void {
-  const timerPath = path.join(
-    serviceDir,
-    "openmail-openclaw-bridge.timer",
-  );
+  const timerPath = path.join(serviceDir, "openmail-openclaw-bridge.timer");
   try {
     readFileSync(timerPath);
   } catch {
