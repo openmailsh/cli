@@ -21,13 +21,17 @@ export class OpenClawForwarder {
       return { forwarded: false };
     }
 
+    // Rename "message" → "email" to avoid collision with OpenClaw's
+    // reserved "message" field on the /hooks/agent action.
+    const payload = reshapePayload(event);
+
     const response = await fetch(this.hookUrl, {
       method: "POST",
       headers: {
         Authorization: `Bearer ${this.hookToken}`,
         "Content-Type": "application/json",
       },
-      body: JSON.stringify(event),
+      body: JSON.stringify(payload),
     });
 
     if (!response.ok) {
@@ -54,4 +58,12 @@ export class OpenClawForwarder {
       }
     }
   }
+}
+
+function reshapePayload(event: Record<string, unknown>): Record<string, unknown> {
+  if (!("message" in event)) return event;
+  const { message, ...rest } = event;
+  const msg = (message ?? {}) as Record<string, unknown>;
+  const { from, ...msgRest } = msg;
+  return { ...rest, email: { ...msgRest, sender: from } };
 }

@@ -8,6 +8,7 @@ import { runThreadsCommand } from "./commands/threads";
 import { runSendCommand } from "./commands/send";
 import { runInitCommand } from "./commands/init";
 import {
+  BridgeConfigError,
   ctxFromConfig,
   resolveBridgeConfig,
   resolveGlobalConfig,
@@ -57,9 +58,19 @@ async function main() {
       globalConfig.apiKey ??
       (await readCliState(globalConfig.statePath)).savedApiKey;
     if (!apiKey) {
-      throw new Error("missing API key (set --api-key or OPENMAIL_API_KEY)");
+      logError(ctx, "missing API key (set --api-key or OPENMAIL_API_KEY)");
+      process.exit(0);
     }
-    const bridge = resolveBridgeConfig(parsed, globalConfig.statePath);
+    let bridge;
+    try {
+      bridge = resolveBridgeConfig(parsed, globalConfig.statePath);
+    } catch (err) {
+      if (err instanceof BridgeConfigError) {
+        logError(ctx, err.message);
+        process.exit(0);
+      }
+      throw err;
+    }
     await runWsBridge(ctx, {
       baseUrl: globalConfig.baseUrl,
       apiKey,
@@ -383,8 +394,10 @@ function printHelp(topic?: string) {
         "openmail threads",
         "",
         "Subcommands:",
-        "  list [--inbox-id <id>] [--limit <n>] [--offset <n>]",
+        "  list [--inbox-id <id>] [--is-read true|false] [--limit <n>] [--offset <n>]",
         "  get --thread-id <id>",
+        "  read --thread-id <id>        Mark a thread as read",
+        "  unread --thread-id <id>      Mark a thread as unread",
         "",
         ...globalFlags,
       ].join("\n"),
@@ -470,7 +483,9 @@ type SetupResult = {
     usageMode: "tool" | "notify" | "channel";
     runBridge?: string;
     reminder?: string;
-    bridgeStatus?: "systemd" | "launchd" | "manual" | "none";
+    bridgeStatus?: "systemd" | "launchd" | "process" | "manual" | "none";
+    bridgePid?: number;
+    persistHint?: string;
   };
 };
 
@@ -508,7 +523,9 @@ function printSetupSuccess(ctx: ReturnType<typeof ctxFromConfig>, data: SetupRes
         ? "managed by systemd (WebSocket)"
         : bridgeStatus === "launchd"
           ? "managed by launchd (WebSocket)"
-          : "not running (manual start required)";
+          : bridgeStatus === "process"
+            ? `running (pid ${data.next?.bridgePid ?? "?"})`
+            : "not running (manual start required)";
 
   process.stdout.write(`${label("Mode:")} ${usageModeLabel}\n`);
   if (data.inbox?.address) {
@@ -521,10 +538,17 @@ function printSetupSuccess(ctx: ReturnType<typeof ctxFromConfig>, data: SetupRes
     process.stdout.write(`${label("Updated files:")} ${data.changedFiles?.length ?? 0}\n`);
   }
 
-  if (bridgeStatus === "manual" && data.next?.runBridge) {
-    process.stdout.write("\n");
-    process.stdout.write(`${label("Next:")} Run ${data.next.runBridge}\n`);
+  if (bridgeStatus === "process") {
+    process.stdout.write(`\n${label("Note:")} Bridge started but will not survive a reboot.\n`);
+    if (data.next?.persistHint) {
+      process.stdout.write(`${label("Make permanent:")} ${data.next.persistHint}\n`);
+    }
+    process.stdout.write(`${label("Log:")} /tmp/openmail-bridge.log\n`);
     process.stdout.write(`${label("Tip:")} Run 'openmail status' anytime\n`);
+  } else if (bridgeStatus === "manual" && data.next?.runBridge) {
+    process.stdout.write("\n");
+    process.stdout.write(`${label("Run:")}\n  ${data.next.runBridge}\n`);
+    process.stdout.write(`\n${label("Tip:")} Run 'openmail status' anytime\n`);
   } else {
     process.stdout.write(`\n${label("Tip:")} Run 'openmail status' anytime\n`);
   }

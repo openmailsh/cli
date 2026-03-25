@@ -5,6 +5,13 @@ import { getBooleanFlag, getStringFlag } from "./args";
 import type { ParsedArgs } from "./args";
 import type { CliContext } from "./output";
 
+export class BridgeConfigError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "BridgeConfigError";
+  }
+}
+
 export type GlobalConfig = {
   apiKey?: string;
   baseUrl: string;
@@ -89,7 +96,9 @@ export function resolveBridgeConfig(parsed: ParsedArgs, globalStatePath: string)
   const hookUrl =
     getStringFlag(parsed.flags, "hook-url") ?? process.env.OPENCLAW_HOOK_URL ?? "";
   const hookToken =
-    getStringFlag(parsed.flags, "hook-token") ?? process.env.OPENCLAW_HOOK_TOKEN ?? "";
+    getStringFlag(parsed.flags, "hook-token") ??
+    process.env.OPENCLAW_HOOK_TOKEN ??
+    readOpenClawHookToken();
   const statePath =
     getStringFlag(parsed.flags, "state-path") ??
     process.env.OPENMAIL_BRIDGE_STATE_PATH ??
@@ -103,12 +112,27 @@ export function resolveBridgeConfig(parsed: ParsedArgs, globalStatePath: string)
   );
 
   if (!hookUrl) {
-    throw new Error("missing hook URL (set --hook-url or OPENCLAW_HOOK_URL)");
+    throw new BridgeConfigError("missing hook URL (set --hook-url or OPENCLAW_HOOK_URL)");
   }
   if (!hookToken) {
-    throw new Error("missing hook token (set --hook-token or OPENCLAW_HOOK_TOKEN)");
+    throw new BridgeConfigError("missing hook token (set --hook-token or OPENCLAW_HOOK_TOKEN)");
   }
   return { hookUrl, hookToken, statePath, inboxIds, eventTypes };
+}
+
+function readOpenClawHookToken(): string {
+  try {
+    const openclawHome =
+      process.env.OPENCLAW_HOME ?? path.join(os.homedir(), ".openclaw");
+    const raw = fs.readFileSync(
+      path.join(openclawHome, "openclaw.json"),
+      "utf8",
+    );
+    const config = JSON.parse(raw) as { hooks?: { token?: string } };
+    return config?.hooks?.token ?? "";
+  } catch {
+    return "";
+  }
 }
 
 export function requireApiKey(config: GlobalConfig) {

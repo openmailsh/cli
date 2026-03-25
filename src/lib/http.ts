@@ -44,6 +44,13 @@ export class OpenMailHttpClient {
     });
   }
 
+  async patch(path: string, body?: unknown) {
+    return this.request(`${this.baseUrl}${path}`, {
+      method: "PATCH",
+      body: body === undefined ? undefined : JSON.stringify(body),
+    });
+  }
+
   async delete(path: string) {
     return this.request(`${this.baseUrl}${path}`, { method: "DELETE" });
   }
