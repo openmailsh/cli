@@ -19,6 +19,13 @@ type Inbox = {
 };
 
 type UsageMode = "tool" | "notify" | "channel";
+type AgentTarget = "openclaw" | "claude-code";
+
+function resolveAgentTarget(parsed: ParsedArgs): AgentTarget {
+  const flag = getStringFlag(parsed.flags, "agent");
+  if (flag === "claude-code") return "claude-code";
+  return "openclaw";
+}
 
 export async function runOpenClawCommand(params: {
   client?: OpenMailHttpClient;
@@ -33,6 +40,7 @@ export async function runOpenClawCommand(params: {
   }
 
   const homeDir = os.homedir();
+  const agentTarget = resolveAgentTarget(params.parsed);
   const openclawHome =
     getStringFlag(params.parsed.flags, "openclaw-home") ??
     process.env.OPENCLAW_HOME ??
@@ -89,6 +97,51 @@ export async function runOpenClawCommand(params: {
     ctx: params.ctx,
   });
 
+  // --- Claude Code target ---
+  if (agentTarget === "claude-code") {
+    const claudeHome = path.join(homeDir, ".claude");
+    const skillDir = path.join(claudeHome, "skills", "openmail");
+    const skillPath = path.join(skillDir, "SKILL.md");
+    const skillWrite = await writeFileIfChanged(skillPath, buildSkillMarkdown());
+
+    const envFilePath = path.join(claudeHome, "openmail.env");
+    const envLines = [
+      `OPENMAIL_API_KEY=${params.apiKey}`,
+      `OPENMAIL_INBOX_ID=${inbox?.id ?? ""}`,
+      `OPENMAIL_ADDRESS=${inbox?.address ?? ""}`,
+    ];
+    const envWrite = await writeFileIfChanged(
+      envFilePath,
+      envLines.join("\n") + "\n",
+    );
+
+    if (params.ctx.output === "json" || params.ctx.verbose) {
+      logInfo(params.ctx, `Prepared Claude Code skill: ${skillPath}`);
+      logInfo(params.ctx, `Prepared OpenMail env: ${envFilePath}`);
+    }
+
+    const nextState = await readCliState(params.statePath);
+    nextState.defaultUsageMode = usageMode;
+    nextState.defaultSetupMode = undefined;
+    await writeCliState(params.statePath, nextState);
+
+    const changes = [
+      ...(skillWrite.changed ? [skillPath] : []),
+      ...(envWrite.changed ? [envFilePath] : []),
+    ];
+
+    return {
+      ok: true,
+      status: changes.length === 0 ? "already_configured" : "configured",
+      changedFiles: changes,
+      openclawHome: claudeHome,
+      inbox: { id: inbox.id, address: inbox.address },
+      files: { skill: skillPath, env: envFilePath, systemd: null, launchd: null },
+      next: { usageMode, bridgeStatus: "none" as const },
+    };
+  }
+
+  // --- OpenClaw target (default) ---
   const skillDir = path.join(openclawHome, "skills", "openmail");
   const skillPath = path.join(skillDir, "SKILL.md");
   const skillWrite = await writeFileIfChanged(skillPath, buildSkillMarkdown());
@@ -276,6 +329,21 @@ metadata: {"openclaw":{"emoji":"📬","requires":{"bins":["openmail"]},"primaryE
 OpenMail gives this agent a real email address for sending and receiving.
 The \`openmail\` CLI handles all API calls — auth, idempotency, and inbox
 resolution are automatic.
+
+## Setup
+
+Check whether setup has already been done:
+
+\`\`\`bash
+grep -s OPENMAIL_API_KEY ~/.openclaw/openmail.env 2>/dev/null || \\
+grep -s OPENMAIL_API_KEY ~/.claude/openmail.env 2>/dev/null
+\`\`\`
+
+If the key is missing or blank, run:
+
+\`\`\`bash
+openmail setup --api-key "om_..."
+\`\`\`
 
 Your email address is \`$OPENMAIL_ADDRESS\`.
 
