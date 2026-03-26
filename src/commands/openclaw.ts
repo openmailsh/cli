@@ -320,7 +320,7 @@ function readOpenClawHookToken(openclawHome: string): string {
 function buildSkillMarkdown(): string {
   return `---
 name: openmail
-description: Dedicated email address for sending and receiving email. Use when the agent needs to send email to external services, receive replies, sign up for services, handle support tickets, or interact with any human institution via email.
+description: Gives the agent a real email address for sending and receiving email. Use this skill when the user needs to send a message to any person, service, or company; receive a reply; sign up for a website or service and confirm the account; receive a verification code, magic link, or password reset; handle an inbound support request; or interact with anything that communicates by email — even if the user doesn't say "email" explicitly and instead says things like "reach out to them", "contact support", "sign up", "wait for their reply", "check if they responded", or "subscribe".
 metadata: {"openclaw":{"emoji":"📬","requires":{"bins":["openmail"]},"primaryEnv":"OPENMAIL_API_KEY","install":[{"id":"npm","kind":"node","package":"@openmail/cli","bins":["openmail"],"label":"Install OpenMail CLI (npm)"}]}}
 ---
 
