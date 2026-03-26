@@ -342,8 +342,10 @@ grep -s OPENMAIL_API_KEY ~/.claude/openmail.env 2>/dev/null
 If the key is missing or blank, run:
 
 \`\`\`bash
-openmail setup --api-key "om_..."
+npx @openmail/cli setup --agent claude-code
 \`\`\`
+
+This opens your browser to sign in, prompts for a mailbox name, and writes credentials automatically.
 
 Your email address is \`$OPENMAIL_ADDRESS\`.
 
