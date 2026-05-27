@@ -63,6 +63,7 @@ export class OpenMailHttpClient {
     bodyHtml?: string;
     threadId?: string;
     idempotencyKey?: string;
+    replyTo?: string;
     attachments?: { path: string; filename: string; contentType: string }[];
   }) {
     const idempotencyKey = params.idempotencyKey ?? crypto.randomUUID();
@@ -76,6 +77,7 @@ export class OpenMailHttpClient {
       formData.append("body", params.body);
       if (params.bodyHtml) formData.append("bodyHtml", params.bodyHtml);
       if (params.threadId) formData.append("threadId", params.threadId);
+      if (params.replyTo) formData.append("replyTo", params.replyTo);
 
       for (const att of params.attachments) {
         const data = await readFile(att.path);
@@ -97,6 +99,7 @@ export class OpenMailHttpClient {
     };
     if (params.bodyHtml) payload.bodyHtml = params.bodyHtml;
     if (params.threadId) payload.threadId = params.threadId;
+    if (params.replyTo) payload.replyTo = params.replyTo;
 
     return this.post(url, payload, {
       "Idempotency-Key": idempotencyKey,

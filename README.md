@@ -47,6 +47,11 @@ openmail inbox delete --id inb_xxx
 # Send email (uses default inbox from setup/init, or pass --inbox-id)
 openmail send --to hello@example.com --subject "Hi" --body "Hello"
 
+# Send with a custom Reply-To
+# (free plan: must be an inbox you own; Developer+: any address)
+openmail send --to hello@example.com --subject "Hi" --body "Hello" \
+  --reply-to support@yourdomain.com
+
 # List messages and threads
 openmail messages list [--direction inbound|outbound]
 openmail threads list

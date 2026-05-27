@@ -42,6 +42,7 @@ export async function runSendCommand(
   const bodyHtml = getStringFlag(parsed.flags, "body-html");
   const threadId = getStringFlag(parsed.flags, "thread-id");
   const idempotencyKey = getStringFlag(parsed.flags, "idempotency-key");
+  const replyTo = getStringFlag(parsed.flags, "reply-to");
   const attachPaths = getRepeatedStringFlag("attach");
 
   if (!inboxId) throw new Error("missing inbox id; run `openmail init` or pass --inbox-id");
@@ -79,6 +80,7 @@ export async function runSendCommand(
     bodyHtml,
     threadId,
     idempotencyKey,
+    replyTo,
     attachments,
   });
 }
