@@ -5,15 +5,41 @@ export type HttpClientConfig = {
   apiKey: string;
 };
 
+export type RateLimitInfo = {
+  limit?: number;
+  remaining?: number;
+  reset?: number;
+  retryAfter?: number;
+};
+
 export class ApiError extends Error {
   status: number;
   body: unknown;
+  rateLimit?: RateLimitInfo;
 
-  constructor(message: string, status: number, body: unknown) {
+  constructor(message: string, status: number, body: unknown, rateLimit?: RateLimitInfo) {
     super(message);
     this.status = status;
     this.body = body;
+    this.rateLimit = rateLimit;
   }
+}
+
+function parseHeaderInt(value: string | null): number | undefined {
+  if (value === null) return undefined;
+  const n = Number.parseInt(value, 10);
+  return Number.isFinite(n) ? n : undefined;
+}
+
+function extractRateLimit(headers: Headers): RateLimitInfo | undefined {
+  const info: RateLimitInfo = {
+    limit: parseHeaderInt(headers.get("x-ratelimit-limit")),
+    remaining: parseHeaderInt(headers.get("x-ratelimit-remaining")),
+    reset: parseHeaderInt(headers.get("x-ratelimit-reset")),
+    retryAfter: parseHeaderInt(headers.get("retry-after")),
+  };
+  const hasAny = Object.values(info).some((v) => v !== undefined);
+  return hasAny ? info : undefined;
 }
 
 export class OpenMailHttpClient {
@@ -131,6 +157,7 @@ export class OpenMailHttpClient {
         `OpenMail API error (${response.status})`,
         response.status,
         parsedBody ?? text,
+        extractRateLimit(response.headers),
       );
     }
     return parsedBody ?? text;

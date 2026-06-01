@@ -227,7 +227,15 @@ main().catch((err: unknown) => {
   const parsed = parseArgs(process.argv.slice(2));
   const ctx = ctxFromConfig(resolveGlobalConfig(parsed));
   if (err instanceof ApiError) {
-    logError(ctx, err.message, { status: err.status, body: err.body });
+    const payload: Record<string, unknown> = { status: err.status, body: err.body };
+    if (err.rateLimit) {
+      payload.rateLimit = err.rateLimit;
+    }
+    let message = err.message;
+    if (err.status === 429 && err.rateLimit?.retryAfter !== undefined) {
+      message = `${err.message} — rate limited, retry after ${err.rateLimit.retryAfter}s`;
+    }
+    logError(ctx, message, payload);
     process.exitCode = 1;
     return;
   }
