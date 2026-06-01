@@ -20,10 +20,12 @@ export async function runInitCommand(params: {
 }) {
   const mailboxName = getStringFlag(params.parsed.flags, "mailbox-name");
   const displayName = getStringFlag(params.parsed.flags, "display-name");
+  const domain = getStringFlag(params.parsed.flags, "domain");
 
   const createParams = await resolveInboxCreateParams({
     mailboxName,
     displayName,
+    domain,
     ctx: params.ctx,
     cancelMessage: "Init cancelled.",
   });
