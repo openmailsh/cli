@@ -11,6 +11,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Thi
 ### Added
 
 - `openmail inbox create` and `openmail init` accept `--domain <domain>` to create an inbox on a verified custom domain you own. When omitted, the inbox uses your account default domain.
+- `openmail usage` — per-inbox usage (inbound/outbound counts, attachment bytes, stored bytes) plus account totals, with `--from`, `--to`, and `--group-by inbox|account` flags.
 
 ---
 

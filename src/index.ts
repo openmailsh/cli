@@ -3,6 +3,7 @@
 import { getBooleanFlag, parseArgs } from "./lib/args";
 import { version } from "../package.json";
 import { runInboxCommand } from "./commands/inbox";
+import { runUsageCommand } from "./commands/usage";
 import { runMessagesCommand } from "./commands/messages";
 import { runThreadsCommand } from "./commands/threads";
 import { runSendCommand } from "./commands/send";
@@ -162,6 +163,8 @@ async function main() {
     });
   } else if (command === "inbox") {
     output = await runInboxCommand(client, parsed);
+  } else if (command === "usage") {
+    output = await runUsageCommand(client, parsed);
   } else if (command === "send") {
     const inboxId = await resolveInboxIdWithFallback({
       client,
@@ -261,6 +264,7 @@ function printHelp(topic?: string) {
         "  status     Show current OpenMail/OpenClaw runtime status",
         "  init       Create a new inbox and set as default",
         "  inbox      Manage inboxes",
+        "  usage      Show per-inbox usage (emails + storage)",
         "  send       Send an email",
         "  messages   List messages for an inbox",
         "  threads    List/get threads",
@@ -352,6 +356,22 @@ function printHelp(topic?: string) {
         "Notes:",
         "  --domain  Create the inbox on a verified custom domain you own",
         "            (defaults to your account domain when omitted).",
+        "",
+        ...globalFlags,
+      ].join("\n"),
+    );
+    return;
+  }
+
+  if (usage === "usage") {
+    process.stdout.write(
+      [
+        "openmail usage",
+        "",
+        "Usage:",
+        "  usage [--from <ISO8601>] [--to <ISO8601>] [--group-by inbox|account]",
+        "",
+        "Shows per-inbox usage (inbound/outbound counts, attachment bytes, stored bytes) plus account totals. Defaults to the last 30 days; max window is 92 days. Use --json for machine-readable output.",
         "",
         ...globalFlags,
       ].join("\n"),

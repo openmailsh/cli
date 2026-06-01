@@ -44,6 +44,9 @@ openmail inbox create [--mailbox-name <name>] [--display-name <sender name>] [--
 openmail inbox get --id inb_xxx
 openmail inbox delete --id inb_xxx
 
+# Per-inbox usage (emails + storage) for metering
+openmail usage [--from <ISO8601>] [--to <ISO8601>] [--group-by inbox|account]
+
 # Send email (uses default inbox from setup/init, or pass --inbox-id)
 openmail send --to hello@example.com --subject "Hi" --body "Hello"
 
