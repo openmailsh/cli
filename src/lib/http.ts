@@ -62,6 +62,7 @@ export class OpenMailHttpClient {
     body: string;
     bodyHtml?: string;
     threadId?: string;
+    includeQuote?: boolean;
     idempotencyKey?: string;
     replyTo?: string;
     attachments?: { path: string; filename: string; contentType: string }[];
@@ -77,6 +78,9 @@ export class OpenMailHttpClient {
       formData.append("body", params.body);
       if (params.bodyHtml) formData.append("bodyHtml", params.bodyHtml);
       if (params.threadId) formData.append("threadId", params.threadId);
+      if (params.includeQuote === false) {
+        formData.append("includeQuote", "false");
+      }
       if (params.replyTo) formData.append("replyTo", params.replyTo);
 
       for (const att of params.attachments) {
@@ -92,13 +96,14 @@ export class OpenMailHttpClient {
       });
     }
 
-    const payload: Record<string, string> = {
+    const payload: Record<string, string | boolean> = {
       to: params.to,
       subject: params.subject,
       body: params.body,
     };
     if (params.bodyHtml) payload.bodyHtml = params.bodyHtml;
     if (params.threadId) payload.threadId = params.threadId;
+    if (params.includeQuote === false) payload.includeQuote = false;
     if (params.replyTo) payload.replyTo = params.replyTo;
 
     return this.post(url, payload, {

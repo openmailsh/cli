@@ -457,12 +457,15 @@ openmail send --to "recipient@example.com" --subject "Subject line" --body "Plai
 openmail send --to "recipient@example.com" --thread-id "thr_..." --body "Reply body."
 \`\`\`
 
+Replies with \`--thread-id\` automatically append a quoted copy of the previous
+message (the "On … wrote:" block humans expect). Pass \`--no-quote\` to send only
+your reply text.
+
 \`\`\`bash
 openmail send --to "recipient@example.com" --subject "Report" --body "<p>See attached.</p>" --attach ./report.pdf
 \`\`\`
 
 \`--body\` accepts plain text or HTML — HTML is detected and rendered automatically.
-Do not use a separate HTML flag.
 
 Add \`--attach <path>\` to attach files (repeatable). The response includes
 \`messageId\` and \`threadId\` — store \`threadId\` to continue the conversation

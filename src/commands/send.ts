@@ -1,7 +1,11 @@
 import { stat } from "node:fs/promises";
 import { basename, resolve } from "node:path";
 import type { ParsedArgs } from "../lib/args";
-import { getStringFlag, getRepeatedStringFlag } from "../lib/args";
+import {
+  getBooleanFlag,
+  getStringFlag,
+  getRepeatedStringFlag,
+} from "../lib/args";
 import type { OpenMailHttpClient } from "../lib/http";
 
 const MIME_TYPES: Record<string, string> = {
@@ -41,6 +45,7 @@ export async function runSendCommand(
   const body = getStringFlag(parsed.flags, "body");
   const bodyHtml = getStringFlag(parsed.flags, "body-html");
   const threadId = getStringFlag(parsed.flags, "thread-id");
+  const noQuote = getBooleanFlag(parsed.flags, "no-quote");
   const idempotencyKey = getStringFlag(parsed.flags, "idempotency-key");
   const replyTo = getStringFlag(parsed.flags, "reply-to");
   const attachPaths = getRepeatedStringFlag("attach");
@@ -79,6 +84,7 @@ export async function runSendCommand(
     body,
     bodyHtml,
     threadId,
+    includeQuote: noQuote ? false : undefined,
     idempotencyKey,
     replyTo,
     attachments,
