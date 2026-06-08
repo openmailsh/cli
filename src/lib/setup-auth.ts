@@ -1,5 +1,5 @@
-import { spawn } from "node:child_process";
 import { cancel, isCancel, note, spinner, text } from "@clack/prompts";
+import { openBrowser } from "./open-browser";
 import type { CliContext } from "./output";
 import { clearScreen, logInfo } from "./output";
 import { OpenMailHttpClient } from "./http";
@@ -162,25 +162,4 @@ async function pollCliAuth(
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-function openBrowser(url: string): boolean {
-  const command =
-    process.platform === "darwin"
-      ? "open"
-      : process.platform === "win32"
-        ? "cmd"
-        : "xdg-open";
-  const args =
-    process.platform === "win32" ? ["/c", "start", "", url] : [url];
-  try {
-    const child = spawn(command, args, {
-      detached: true,
-      stdio: "ignore",
-    });
-    child.unref();
-    return true;
-  } catch {
-    return false;
-  }
 }
