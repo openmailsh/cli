@@ -458,8 +458,11 @@ openmail send --to "recipient@example.com" --thread-id "thr_..." --body "Reply b
 \`\`\`
 
 \`\`\`bash
-openmail send --to "recipient@example.com" --subject "Report" --body "See attached." --body-html "<p>See attached.</p>" --attach ./report.pdf
+openmail send --to "recipient@example.com" --subject "Report" --body "<p>See attached.</p>" --attach ./report.pdf
 \`\`\`
+
+\`--body\` accepts plain text or HTML — HTML is detected and rendered automatically.
+Do not use a separate HTML flag.
 
 Add \`--attach <path>\` to attach files (repeatable). The response includes
 \`messageId\` and \`threadId\` — store \`threadId\` to continue the conversation
