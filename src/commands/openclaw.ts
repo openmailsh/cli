@@ -467,14 +467,19 @@ openmail send --to "recipient@example.com" --subject "Report" --body "<p>See att
 
 \`--body\` accepts plain text or HTML — HTML is detected and rendered automatically.
 
-Add \`--attach <path>\` to attach files (repeatable). The response includes
-\`messageId\` and \`threadId\` — store \`threadId\` to continue the conversation
-later. Subject is ignored when replying in a thread.
+Add \`--attach <path>\` to attach files (repeatable). Add \`--cc <email>\` (repeatable)
+to copy other recipients. The response includes \`messageId\` and \`threadId\` — store
+\`threadId\` to continue the conversation later. \`--subject\` is optional when
+\`--thread-id\` is set — the thread subject is used automatically.
 
 **Always reply in the existing thread.** When the user asks you to reply
 to an email, look up the thread with \`openmail inbox\` or
 \`openmail threads list\` first, then use \`--thread-id\`. Never create a
 new thread unless the user explicitly asks for one.
+
+**When you were CC'd:** check \`deliveryRole\` and \`headerTo\` on the inbound
+message (via \`threads get\`). If \`deliveryRole\` is \`cc\`, reply to \`headerTo\`
+— not to \`fromAddr\`. OpenMail auto-CCs \`fromAddr\` on thread replies.
 
 ## Checking for new mail
 
@@ -527,6 +532,10 @@ Each message has:
 | \`id\` | Message identifier |
 | \`threadId\` | Conversation thread |
 | \`fromAddr\` | Sender address |
+| \`toAddr\` | Envelope recipient (your inbox address on inbound) |
+| \`headerTo\` | Who the sender addressed in the To header (use for CC replies) |
+| \`deliveryRole\` | \`to\` or \`cc\` — primary recipient vs CC'd |
+| \`cc\` | CC recipients |
 | \`subject\` | Subject line |
 | \`bodyText\` | Plain text body (use this) |
 | \`attachments\` | Array with \`filename\`, \`url\`, \`sizeBytes\` |
