@@ -12,24 +12,17 @@ export async function runInboxCommand(client: OpenMailHttpClient, parsed: Parsed
     const mailboxName = getStringFlag(parsed.flags, "mailbox-name");
     const displayName = getStringFlag(parsed.flags, "display-name");
     const domain = getStringFlag(parsed.flags, "domain");
-    const podId = getStringFlag(parsed.flags, "pod-id");
     return client.post("/v1/inboxes", {
       ...(mailboxName ? { mailboxName } : {}),
       ...(displayName ? { displayName } : {}),
       ...(domain ? { domain } : {}),
-      ...(podId ? { podId } : {}),
     });
   }
 
   if (action === "list") {
     const limit = getNumberFlag(parsed.flags, "limit");
     const offset = getNumberFlag(parsed.flags, "offset");
-    const podId = getStringFlag(parsed.flags, "pod-id");
-    return client.get("/v1/inboxes", {
-      limit,
-      offset,
-      ...(podId ? { podId } : {}),
-    });
+    return client.get("/v1/inboxes", { limit, offset });
   }
 
   if (action === "get") {

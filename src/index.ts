@@ -3,7 +3,6 @@
 import { getBooleanFlag, parseArgs } from "./lib/args";
 import { version } from "../package.json";
 import { runInboxCommand } from "./commands/inbox";
-import { runPodCommand } from "./commands/pod";
 import { runMessagesCommand } from "./commands/messages";
 import { runThreadsCommand } from "./commands/threads";
 import { runSendCommand } from "./commands/send";
@@ -163,8 +162,6 @@ async function main() {
     });
   } else if (command === "inbox") {
     output = await runInboxCommand(client, parsed);
-  } else if (command === "pod") {
-    output = await runPodCommand(client, parsed);
   } else if (command === "send") {
     const inboxId = await resolveInboxIdWithFallback({
       client,
@@ -264,7 +261,6 @@ function printHelp(topic?: string) {
         "  status     Show current OpenMail/OpenClaw runtime status",
         "  init       Create a new inbox and set as default",
         "  inbox      Manage inboxes",
-        "  pod        Manage pods (tenant namespaces)",
         "  send       Send an email",
         "  messages   List messages for an inbox",
         "  threads    List/get threads",
@@ -348,32 +344,10 @@ function printHelp(topic?: string) {
         "openmail inbox",
         "",
         "Subcommands:",
-        "  create [--mailbox-name <name>] [--display-name <sender name>]",
-        "           [--domain <verified-domain>] [--pod-id <pod-id-or-client-id>]",
-        "  list [--limit <n>] [--offset <n>] [--pod-id <pod-id-or-client-id>]",
+        "  create [--mailbox-name <name>] [--display-name <sender name>] [--domain <verified-domain>]",
+        "  list [--limit <n>] [--offset <n>]",
         "  get --id <inbox_id>",
         "  delete --id <inbox_id>",
-        "",
-        ...globalFlags,
-      ].join("\n"),
-    );
-    return;
-  }
-
-  if (usage === "pod") {
-    process.stdout.write(
-      [
-        "openmail pod",
-        "",
-        "Subcommands:",
-        "  create [--client-id <your-id>] [--name <label>]",
-        "  list [--limit <n>] [--offset <n>]",
-        "  get --id <pod_id_or_client_id>",
-        "  update --id <pod_id_or_client_id> [--client-id <your-id>] [--name <label>]",
-        "  delete --id <pod_id_or_client_id>",
-        "",
-        "Pods isolate inboxes (and optionally custom domains) per tenant.",
-        "Use your own clientId to reference pods without storing OpenMail IDs.",
         "",
         ...globalFlags,
       ].join("\n"),
