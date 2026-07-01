@@ -370,7 +370,7 @@ function printHelp(topic?: string) {
         "  --thread-id <id>    Reply in a thread; quotes the previous message by default",
         "  --no-quote          Send only your reply text (skip auto-quoted history)",
         "  --reply-to <email>  Address replies should go to. Free plan: must be the",
-        "                      address of an inbox you own. Developer+: any address.",
+        "                      address of an inbox you own. Pro+: any address.",
         "  --attach <file>     Attach a file (repeatable for multiple files)",
         "",
         "Examples:",

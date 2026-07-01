@@ -48,7 +48,7 @@ openmail inbox delete --id inb_xxx
 openmail send --to hello@example.com --subject "Hi" --body "Hello"
 
 # Send with a custom Reply-To
-# (free plan: must be an inbox you own; Developer+: any address)
+# (free plan: must be an inbox you own; Pro+: any address)
 openmail send --to hello@example.com --subject "Hi" --body "Hello" \
   --reply-to support@yourdomain.com
 
