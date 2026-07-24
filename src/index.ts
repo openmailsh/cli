@@ -95,8 +95,14 @@ async function main() {
       if (output.status === "up_to_date") {
         process.stdout.write(`Already up to date (${output.to}).\n`);
       } else {
+        const extras = [
+          output.skillRefresh === "done" ? "Skill files refreshed." : "",
+          output.bridge === "restarted" ? "Notification bridge restarted." : "",
+        ]
+          .filter(Boolean)
+          .join(" ");
         process.stdout.write(
-          `Updated to ${output.to}.${output.skillRefresh === "done" ? " Skill files refreshed." : ""}\n`,
+          `Updated to ${output.to}.${extras ? ` ${extras}` : ""}\n`,
         );
       }
       return;
@@ -539,9 +545,10 @@ function printHelp(topic?: string) {
         "  update",
         "",
         "Updates the globally installed @openmail/cli to the latest published",
-        "version (npm install -g), then refreshes installed skill files via",
-        "`setup --refresh-skill` (no prompts, no API calls, no config changes).",
-        "`upgrade` is an alias.",
+        "version (npm install -g), refreshes installed skill files via",
+        "`setup --refresh-skill` (no prompts, no API calls, no config changes),",
+        "and restarts the notification bridge service if one is running so it",
+        "picks up the new code. `upgrade` is an alias.",
         "",
         "A one-line notice is printed after any command when a newer version",
         "is available (checked against the npm registry at most once per day).",

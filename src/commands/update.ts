@@ -1,7 +1,17 @@
 import { spawnSync } from "node:child_process";
+import { existsSync } from "node:fs";
+import os from "node:os";
+import path from "node:path";
 import type { CliContext } from "../lib/output";
 import { logInfo } from "../lib/output";
 import { fetchLatestVersion, isNewerVersion } from "../lib/update-check";
+
+export type BridgeRestart =
+  | "restarted"
+  | "not_running"
+  | "failed"
+  | "manual_restart_needed"
+  | "none";
 
 export type UpdateResult = {
   ok: boolean;
@@ -9,7 +19,72 @@ export type UpdateResult = {
   from: string;
   to: string;
   skillRefresh: "done" | "failed" | "skipped";
+  bridge: BridgeRestart;
 };
+
+type ExecFn = (cmd: string, args: string[]) => { status: number | null };
+
+const defaultExec: ExecFn = (cmd, args) =>
+  spawnSync(cmd, args, { stdio: "ignore" });
+
+/**
+ * Restart the notify/channel-mode WebSocket bridge so it picks up the freshly
+ * installed code — the service definitions exec the global install path, which
+ * `npm install -g` overwrites in place, so a plain restart is enough. Covers
+ * the managed runtimes (systemd on Linux, launchd on macOS). A bridge running
+ * as a detached plain process has no tracked pid, so it is only detected and
+ * reported for a manual restart. Tool-mode installs have no bridge: "none".
+ */
+export function restartBridgeIfInstalled(deps?: {
+  homeDir?: string;
+  platform?: NodeJS.Platform;
+  exec?: ExecFn;
+}): BridgeRestart {
+  const homeDir = deps?.homeDir ?? os.homedir();
+  const platform = deps?.platform ?? process.platform;
+  const exec = deps?.exec ?? defaultExec;
+
+  const systemdUnit = path.join(
+    homeDir,
+    ".config",
+    "systemd",
+    "user",
+    "openmail-openclaw-bridge.service",
+  );
+  if (platform === "linux" && existsSync(systemdUnit)) {
+    const active = exec("systemctl", [
+      "--user",
+      "is-active",
+      "--quiet",
+      "openmail-openclaw-bridge.service",
+    ]);
+    if (active.status !== 0) return "not_running";
+    const restart = exec("systemctl", [
+      "--user",
+      "restart",
+      "openmail-openclaw-bridge.service",
+    ]);
+    return restart.status === 0 ? "restarted" : "failed";
+  }
+
+  const plist = path.join(
+    homeDir,
+    "Library",
+    "LaunchAgents",
+    "sh.openmail.openclaw-bridge.plist",
+  );
+  if (platform === "darwin" && existsSync(plist)) {
+    exec("launchctl", ["unload", plist]);
+    const load = exec("launchctl", ["load", "-w", plist]);
+    return load.status === 0 ? "restarted" : "failed";
+  }
+
+  // Detached plain-process bridge (setup's last-resort mode): detect only.
+  const found = exec("pgrep", ["-f", "@openmail/cli.* ws bridge"]);
+  if (found.status === 0) return "manual_restart_needed";
+
+  return "none";
+}
 
 /**
  * Upgrade the globally installed CLI to the latest published version, then
@@ -37,6 +112,7 @@ export async function runUpdateCommand(params: {
       from: currentVersion,
       to: currentVersion,
       skillRefresh: "skipped",
+      bridge: "none",
     };
   }
 
@@ -67,11 +143,27 @@ export async function runUpdateCommand(params: {
     );
   }
 
+  // The bridge (notify/channel mode) is a long-running process that keeps
+  // executing the old code until restarted.
+  const bridge = restartBridgeIfInstalled();
+  if (bridge === "failed") {
+    logInfo(
+      ctx,
+      "Updated, but restarting the notification bridge failed — run `openmail setup` to relaunch it.",
+    );
+  } else if (bridge === "manual_restart_needed") {
+    logInfo(
+      ctx,
+      "Updated. The notification bridge is running as a plain process on the old version — restart it to pick up the update.",
+    );
+  }
+
   return {
     ok: true,
     status: "updated",
     from: currentVersion,
     to: latest,
     skillRefresh,
+    bridge,
   };
 }
