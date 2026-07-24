@@ -22,6 +22,7 @@ import { resolveInboxIdWithFallback } from "./lib/inbox-default";
 import { runOpenClawCommand } from "./commands/openclaw";
 import { resolveApiKeyForSetup } from "./lib/setup-auth";
 import { runStatusCommand } from "./commands/status";
+import { runFeedbackCommand } from "./commands/feedback";
 
 async function main() {
   const parsed = parseArgs(process.argv.slice(2));
@@ -190,6 +191,8 @@ async function main() {
           })
         : undefined;
     output = await runThreadsCommand(client, parsed, inboxId);
+  } else if (command === "feedback") {
+    output = await runFeedbackCommand(client, parsed);
   } else if (command === "openclaw") {
     logInfo(
       ctx,
@@ -264,6 +267,7 @@ function printHelp(topic?: string) {
         "  send       Send an email",
         "  messages   List messages for an inbox",
         "  threads    List/get threads",
+        "  feedback   Report a bug, friction, or feature request to the OpenMail team",
         "  openclaw   OpenClaw setup helpers",
         "  ws         WebSocket utilities (bridge)",
         "  doctor     Run connectivity/config diagnostics",
@@ -410,6 +414,34 @@ function printHelp(topic?: string) {
         "  get --thread-id <id>",
         "  read --thread-id <id>        Mark a thread as read",
         "  unread --thread-id <id>      Mark a thread as unread",
+        "",
+        ...globalFlags,
+      ].join("\n"),
+    );
+    return;
+  }
+
+  if (usage === "feedback") {
+    process.stdout.write(
+      [
+        "openmail feedback",
+        "",
+        "Usage:",
+        "  feedback --type bug|friction|feature_request --message <text>",
+        "           [--endpoint <api path>] [--error-code <code>] [--request-id <id>]",
+        "",
+        "Reports a problem or suggestion about OpenMail itself directly to the",
+        "OpenMail team. Use it when an API call fails unexpectedly, a response",
+        "looks wrong, or something would make the service work better for you.",
+        "",
+        "Types:",
+        "  bug              Something broken or a response that looks wrong",
+        "  friction         Works, but confusing or harder than it should be",
+        "  feature_request  A capability OpenMail lacks",
+        "",
+        "Examples:",
+        "  openmail feedback --type bug --message \"send returned 500 for a plain text email\" --endpoint /v1/inboxes/{id}/send --error-code internal_error",
+        "  openmail feedback --type feature_request --message \"let me search messages by subject\"",
         "",
         ...globalFlags,
       ].join("\n"),
