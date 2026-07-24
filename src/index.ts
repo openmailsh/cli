@@ -19,10 +19,12 @@ import { colorize, printData, logError, logInfo } from "./lib/output";
 import { runWsBridge } from "./lib/ws-bridge";
 import { runDoctor } from "./lib/doctor";
 import { resolveInboxIdWithFallback } from "./lib/inbox-default";
-import { runOpenClawCommand } from "./commands/openclaw";
+import { runOpenClawCommand, refreshSkillFiles } from "./commands/openclaw";
 import { resolveApiKeyForSetup } from "./lib/setup-auth";
 import { runStatusCommand } from "./commands/status";
 import { runFeedbackCommand } from "./commands/feedback";
+import { runUpdateCommand } from "./commands/update";
+import { notifyIfUpdateAvailable } from "./lib/update-check";
 
 async function main() {
   const parsed = parseArgs(process.argv.slice(2));
@@ -84,6 +86,31 @@ async function main() {
     return;
   }
 
+  if (command === "update" || command === "upgrade") {
+    const output = await runUpdateCommand({
+      ctx,
+      currentVersion: version,
+    });
+    if (ctx.output === "human") {
+      if (output.status === "up_to_date") {
+        process.stdout.write(`Already up to date (${output.to}).\n`);
+      } else {
+        const extras = [
+          output.skillRefresh === "done" ? "Skill files refreshed." : "",
+          output.bridge === "restarted" ? "Notification bridge restarted." : "",
+        ]
+          .filter(Boolean)
+          .join(" ");
+        process.stdout.write(
+          `Updated to ${output.to}.${extras ? ` ${extras}` : ""}\n`,
+        );
+      }
+      return;
+    }
+    printData(ctx, output);
+    return;
+  }
+
   if (command === "doctor") {
     await runDoctor(ctx, {
       baseUrl: globalConfig.baseUrl,
@@ -116,6 +143,23 @@ async function main() {
   }
 
   let output: unknown;
+  if (command === "setup" && getBooleanFlag(parsed.flags, "refresh-skill")) {
+    // Prompt-free, network-free: rewrites already-installed skill files from
+    // this binary's embedded template. Needs no API key.
+    const result = await refreshSkillFiles();
+    if (ctx.output === "human") {
+      process.stdout.write(
+        result.status === "refreshed"
+          ? `Skill files refreshed (${result.refreshed.length}).\n`
+          : result.status === "unchanged"
+            ? "Skill files already up to date.\n"
+            : "No installed skill files found — run `openmail setup` first.\n",
+      );
+      return;
+    }
+    printData(ctx, result);
+    return;
+  }
   if (command === "setup") {
     const reset = getBooleanFlag(parsed.flags, "reset");
     if (reset) {
@@ -221,6 +265,10 @@ async function main() {
     return;
   }
   printData(ctx, output);
+
+  // After the command's own output: a one-line nudge when a newer CLI is
+  // published (cached, once-a-day registry hit, never in --json mode).
+  await notifyIfUpdateAvailable(ctx, globalConfig.statePath, version);
 }
 
 main().catch((err: unknown) => {
@@ -271,6 +319,7 @@ function printHelp(topic?: string) {
         "  openclaw   OpenClaw setup helpers",
         "  ws         WebSocket utilities (bridge)",
         "  doctor     Run connectivity/config diagnostics",
+        "  update     Update the CLI to the latest version and refresh skill files",
         "",
         ...globalFlags,
       ].join("\n"),
@@ -304,6 +353,7 @@ function printHelp(topic?: string) {
         "  setup [--mode tool|notify|channel]",
         "  setup [--openclaw-home <path>] [--hook-path </hooks/openmail>] [--hooks-token <token>] [--with-systemd] [--reconfigure]",
         "  setup [--inbox-id <id>] [--mailbox-name <name>] [--display-name <sender>]",
+        "  setup --refresh-skill",
         "  setup --reset [--force]",
         "",
         "Agents:",
@@ -318,6 +368,8 @@ function printHelp(topic?: string) {
         "Runs idempotent setup. Prompts for inbox and mode selection.",
         "A WebSocket bridge (systemd/launchd) is auto-configured for notify and channel modes.",
         "--reconfigure re-prompts for interactive choices.",
+        "--refresh-skill only rewrites already-installed skill files from this",
+        "version's template — no prompts, no API calls, no config changes.",
         "--reset removes OpenMail setup files (requires double confirmation unless --force).",
         "",
         ...globalFlags,
@@ -477,6 +529,29 @@ function printHelp(topic?: string) {
         "",
         "Environment:",
         "  OPENMAIL_API_KEY, OPENCLAW_HOOK_URL, OPENCLAW_HOOK_TOKEN",
+        "",
+        ...globalFlags,
+      ].join("\n"),
+    );
+    return;
+  }
+
+  if (usage === "update" || usage === "upgrade") {
+    process.stdout.write(
+      [
+        "openmail update",
+        "",
+        "Usage:",
+        "  update",
+        "",
+        "Updates the globally installed @openmail/cli to the latest published",
+        "version (npm install -g), refreshes installed skill files via",
+        "`setup --refresh-skill` (no prompts, no API calls, no config changes),",
+        "and restarts the notification bridge service if one is running so it",
+        "picks up the new code. `upgrade` is an alias.",
+        "",
+        "A one-line notice is printed after any command when a newer version",
+        "is available (checked against the npm registry at most once per day).",
         "",
         ...globalFlags,
       ].join("\n"),

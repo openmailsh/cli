@@ -9,6 +9,10 @@ export type CliState = {
   defaultUsageMode?: "tool" | "notify" | "channel";
   /** @deprecated Migrated to defaultUsageMode */
   defaultSetupMode?: "websocket" | "webhook";
+  /** ISO timestamp of the last npm registry version check. */
+  lastUpdateCheckAt?: string;
+  /** Latest published version seen at that check. */
+  latestKnownVersion?: string;
 };
 
 export async function readCliState(statePath: string): Promise<CliState> {
