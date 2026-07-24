@@ -54,12 +54,16 @@ export async function runUpdateCommand(params: {
 
   // Refresh the installed skill files via the freshly installed binary — the
   // running (old) process would only rewrite its own outdated template.
-  const setup = spawnSync("openmail", ["setup"], { stdio: "ignore" });
-  const skillRefresh = setup.status === 0 ? "done" : "failed";
+  // --refresh-skill is prompt-free and network-free: it rewrites installed
+  // SKILL.md files and touches nothing else (no inbox/mode flow, no API).
+  const refresh = spawnSync("openmail", ["setup", "--refresh-skill"], {
+    stdio: "ignore",
+  });
+  const skillRefresh = refresh.status === 0 ? "done" : "failed";
   if (skillRefresh === "failed") {
     logInfo(
       ctx,
-      "Updated, but the skill refresh failed — run `openmail setup` to refresh skill files.",
+      "Updated, but the skill refresh failed — run `openmail setup --refresh-skill` to refresh skill files.",
     );
   }
 

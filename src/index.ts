@@ -19,7 +19,7 @@ import { colorize, printData, logError, logInfo } from "./lib/output";
 import { runWsBridge } from "./lib/ws-bridge";
 import { runDoctor } from "./lib/doctor";
 import { resolveInboxIdWithFallback } from "./lib/inbox-default";
-import { runOpenClawCommand } from "./commands/openclaw";
+import { runOpenClawCommand, refreshSkillFiles } from "./commands/openclaw";
 import { resolveApiKeyForSetup } from "./lib/setup-auth";
 import { runStatusCommand } from "./commands/status";
 import { runFeedbackCommand } from "./commands/feedback";
@@ -137,6 +137,23 @@ async function main() {
   }
 
   let output: unknown;
+  if (command === "setup" && getBooleanFlag(parsed.flags, "refresh-skill")) {
+    // Prompt-free, network-free: rewrites already-installed skill files from
+    // this binary's embedded template. Needs no API key.
+    const result = await refreshSkillFiles();
+    if (ctx.output === "human") {
+      process.stdout.write(
+        result.status === "refreshed"
+          ? `Skill files refreshed (${result.refreshed.length}).\n`
+          : result.status === "unchanged"
+            ? "Skill files already up to date.\n"
+            : "No installed skill files found — run `openmail setup` first.\n",
+      );
+      return;
+    }
+    printData(ctx, result);
+    return;
+  }
   if (command === "setup") {
     const reset = getBooleanFlag(parsed.flags, "reset");
     if (reset) {
@@ -330,6 +347,7 @@ function printHelp(topic?: string) {
         "  setup [--mode tool|notify|channel]",
         "  setup [--openclaw-home <path>] [--hook-path </hooks/openmail>] [--hooks-token <token>] [--with-systemd] [--reconfigure]",
         "  setup [--inbox-id <id>] [--mailbox-name <name>] [--display-name <sender>]",
+        "  setup --refresh-skill",
         "  setup --reset [--force]",
         "",
         "Agents:",
@@ -344,6 +362,8 @@ function printHelp(topic?: string) {
         "Runs idempotent setup. Prompts for inbox and mode selection.",
         "A WebSocket bridge (systemd/launchd) is auto-configured for notify and channel modes.",
         "--reconfigure re-prompts for interactive choices.",
+        "--refresh-skill only rewrites already-installed skill files from this",
+        "version's template — no prompts, no API calls, no config changes.",
         "--reset removes OpenMail setup files (requires double confirmation unless --force).",
         "",
         ...globalFlags,
@@ -519,8 +539,9 @@ function printHelp(topic?: string) {
         "  update",
         "",
         "Updates the globally installed @openmail/cli to the latest published",
-        "version (npm install -g), then re-runs `openmail setup` with the new",
-        "binary to refresh installed skill files. `upgrade` is an alias.",
+        "version (npm install -g), then refreshes installed skill files via",
+        "`setup --refresh-skill` (no prompts, no API calls, no config changes).",
+        "`upgrade` is an alias.",
         "",
         "A one-line notice is printed after any command when a newer version",
         "is available (checked against the npm registry at most once per day).",

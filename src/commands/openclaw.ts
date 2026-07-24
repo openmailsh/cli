@@ -323,6 +323,65 @@ function readOpenClawHookToken(openclawHome: string): string {
   }
 }
 
+export type RefreshSkillResult = {
+  ok: boolean;
+  status: "refreshed" | "unchanged" | "not_installed";
+  refreshed: string[];
+};
+
+/**
+ * Rewrite already-installed skill files from this binary's embedded template.
+ * Strictly prompt-free and network-free: no API calls, no inbox resolution,
+ * no env or state changes — a file that isn't installed is left alone. This
+ * is what `openmail update` runs after upgrading, so an update can never
+ * drag the user back through the setup flow or touch their configuration.
+ */
+export async function refreshSkillFiles(params?: {
+  homeDir?: string;
+}): Promise<RefreshSkillResult> {
+  const homeDir = params?.homeDir ?? os.homedir();
+  const openclawHome = process.env.OPENCLAW_HOME ?? path.join(homeDir, ".openclaw");
+  const targets = [
+    {
+      filePath: path.join(openclawHome, "skills", "openmail", "SKILL.md"),
+      agent: "openclaw" as const,
+    },
+    {
+      filePath: path.join(homeDir, ".claude", "skills", "openmail", "SKILL.md"),
+      agent: "claude-code" as const,
+    },
+  ];
+
+  const refreshed: string[] = [];
+  let anyInstalled = false;
+  for (const target of targets) {
+    let installed = false;
+    try {
+      await fs.access(target.filePath);
+      installed = true;
+    } catch {
+      installed = false;
+    }
+    if (!installed) continue;
+    anyInstalled = true;
+    const write = await writeFileIfChanged(
+      target.filePath,
+      buildSkillMarkdown({ agent: target.agent }),
+    );
+    if (write.changed) refreshed.push(target.filePath);
+  }
+
+  return {
+    ok: true,
+    status: !anyInstalled
+      ? "not_installed"
+      : refreshed.length > 0
+        ? "refreshed"
+        : "unchanged",
+    refreshed,
+  };
+}
+
 function buildSkillMarkdown(opts: {
   agent: "openclaw" | "claude-code";
 }): string {
