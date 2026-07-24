@@ -2,9 +2,18 @@ import type { CliContext } from "./output";
 import { colorize } from "./output";
 import { readCliState, writeCliState } from "./state";
 
-const REGISTRY_URL = "https://registry.npmjs.org/@openmail/cli/latest";
 const CHECK_INTERVAL_MS = 24 * 60 * 60 * 1000;
 const FETCH_TIMEOUT_MS = 2_000;
+
+/** Same registry npm itself would use, so the version check and the
+ *  subsequent `npm install -g` agree — also what makes the update flow work
+ *  behind a private registry mirror. */
+function registryUrl(): string {
+  const base = (
+    process.env.npm_config_registry || "https://registry.npmjs.org"
+  ).replace(/\/+$/, "");
+  return `${base}/@openmail/cli/latest`;
+}
 
 /** True when `latest` is a strictly newer x.y.z than `current`. Prerelease
  *  suffixes are ignored — releases of this package are plain semver. */
@@ -28,7 +37,7 @@ export async function fetchLatestVersion(
   timeoutMs = FETCH_TIMEOUT_MS,
 ): Promise<string | null> {
   try {
-    const res = await fetch(REGISTRY_URL, {
+    const res = await fetch(registryUrl(), {
       signal: AbortSignal.timeout(timeoutMs),
     });
     if (!res.ok) return null;
