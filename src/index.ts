@@ -23,6 +23,8 @@ import { runOpenClawCommand } from "./commands/openclaw";
 import { resolveApiKeyForSetup } from "./lib/setup-auth";
 import { runStatusCommand } from "./commands/status";
 import { runFeedbackCommand } from "./commands/feedback";
+import { runUpdateCommand } from "./commands/update";
+import { notifyIfUpdateAvailable } from "./lib/update-check";
 
 async function main() {
   const parsed = parseArgs(process.argv.slice(2));
@@ -81,6 +83,25 @@ async function main() {
       inboxIds: bridge.inboxIds,
       eventTypes: bridge.eventTypes,
     });
+    return;
+  }
+
+  if (command === "update" || command === "upgrade") {
+    const output = await runUpdateCommand({
+      ctx,
+      currentVersion: version,
+    });
+    if (ctx.output === "human") {
+      if (output.status === "up_to_date") {
+        process.stdout.write(`Already up to date (${output.to}).\n`);
+      } else {
+        process.stdout.write(
+          `Updated to ${output.to}.${output.skillRefresh === "done" ? " Skill files refreshed." : ""}\n`,
+        );
+      }
+      return;
+    }
+    printData(ctx, output);
     return;
   }
 
@@ -221,6 +242,10 @@ async function main() {
     return;
   }
   printData(ctx, output);
+
+  // After the command's own output: a one-line nudge when a newer CLI is
+  // published (cached, once-a-day registry hit, never in --json mode).
+  await notifyIfUpdateAvailable(ctx, globalConfig.statePath, version);
 }
 
 main().catch((err: unknown) => {
@@ -271,6 +296,7 @@ function printHelp(topic?: string) {
         "  openclaw   OpenClaw setup helpers",
         "  ws         WebSocket utilities (bridge)",
         "  doctor     Run connectivity/config diagnostics",
+        "  update     Update the CLI to the latest version and refresh skill files",
         "",
         ...globalFlags,
       ].join("\n"),
@@ -477,6 +503,27 @@ function printHelp(topic?: string) {
         "",
         "Environment:",
         "  OPENMAIL_API_KEY, OPENCLAW_HOOK_URL, OPENCLAW_HOOK_TOKEN",
+        "",
+        ...globalFlags,
+      ].join("\n"),
+    );
+    return;
+  }
+
+  if (usage === "update" || usage === "upgrade") {
+    process.stdout.write(
+      [
+        "openmail update",
+        "",
+        "Usage:",
+        "  update",
+        "",
+        "Updates the globally installed @openmail/cli to the latest published",
+        "version (npm install -g), then re-runs `openmail setup` with the new",
+        "binary to refresh installed skill files. `upgrade` is an alias.",
+        "",
+        "A one-line notice is printed after any command when a newer version",
+        "is available (checked against the npm registry at most once per day).",
         "",
         ...globalFlags,
       ].join("\n"),
