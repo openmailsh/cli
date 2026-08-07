@@ -36,11 +36,11 @@ openmail setup [--mode websocket|webhook]
 
 ```bash
 # Create a new inbox (interactive prompts, or pass flags)
-openmail init [--mailbox-name john] [--display-name "John Smith"]
+openmail init [--mailbox-name john] [--display-name "John Smith"] [--domain agent-mail.example.com]
 
 # Manage inboxes
 openmail inbox list --limit 10
-openmail inbox create [--mailbox-name <name>] [--display-name <sender name>]
+openmail inbox create [--mailbox-name <name>] [--display-name <sender name>] [--domain <domain>]
 openmail inbox get --id inb_xxx
 openmail inbox delete --id inb_xxx
 

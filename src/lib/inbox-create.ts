@@ -6,13 +6,15 @@ export const MAILBOX_NAME_REGEX = /^[a-z0-9][a-z0-9.\-]{1,28}[a-z0-9]$/;
 export async function resolveInboxCreateParams(params: {
   mailboxName?: string;
   displayName?: string;
+  domain?: string;
   ctx: CliContext;
   cancelMessage?: string;
-}): Promise<{ mailboxName?: string; displayName?: string }> {
-  if (params.mailboxName || params.displayName) {
+}): Promise<{ mailboxName?: string; displayName?: string; domain?: string }> {
+  if (params.mailboxName || params.displayName || params.domain) {
     return {
       ...(params.mailboxName ? { mailboxName: params.mailboxName } : {}),
       ...(params.displayName ? { displayName: params.displayName } : {}),
+      ...(params.domain ? { domain: params.domain } : {}),
     };
   }
 

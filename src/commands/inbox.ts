@@ -11,9 +11,11 @@ export async function runInboxCommand(client: OpenMailHttpClient, parsed: Parsed
   if (action === "create") {
     const mailboxName = getStringFlag(parsed.flags, "mailbox-name");
     const displayName = getStringFlag(parsed.flags, "display-name");
+    const domain = getStringFlag(parsed.flags, "domain");
     return client.post("/v1/inboxes", {
       ...(mailboxName ? { mailboxName } : {}),
       ...(displayName ? { displayName } : {}),
+      ...(domain ? { domain } : {}),
     });
   }
 

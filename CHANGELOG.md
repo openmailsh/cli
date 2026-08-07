@@ -6,6 +6,14 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Thi
 
 ---
 
+## [Unreleased]
+
+### Added
+
+- `openmail inbox create` and `openmail init` accept `--domain <domain>` to create an inbox on a verified custom domain you own. When omitted, the inbox uses your account default domain.
+
+---
+
 ## [0.1.6] — current
 
 Initial public release on [openmailsh/cli](https://github.com/openmailsh/cli).
