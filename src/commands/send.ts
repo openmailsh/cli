@@ -48,11 +48,12 @@ export async function runSendCommand(
   const noQuote = getBooleanFlag(parsed.flags, "no-quote");
   const idempotencyKey = getStringFlag(parsed.flags, "idempotency-key");
   const replyTo = getStringFlag(parsed.flags, "reply-to");
+  const cc = getRepeatedStringFlag("cc");
   const attachPaths = getRepeatedStringFlag("attach");
 
   if (!inboxId) throw new Error("missing inbox id; run `openmail init` or pass --inbox-id");
   if (!to) throw new Error("missing --to");
-  if (!subject) throw new Error("missing --subject");
+  if (!threadId && !subject) throw new Error("missing --subject (optional when --thread-id is set)");
   if (!body) throw new Error("missing --body");
 
   let attachments: { path: string; filename: string; contentType: string }[] | undefined;
@@ -80,13 +81,14 @@ export async function runSendCommand(
   return client.sendEmail({
     inboxId,
     to,
-    subject,
+    subject: subject ?? "",
     body,
     bodyHtml,
     threadId,
     includeQuote: noQuote ? false : undefined,
     idempotencyKey,
     replyTo,
+    cc: cc.length > 0 ? cc : undefined,
     attachments,
   });
 }

@@ -65,6 +65,7 @@ export class OpenMailHttpClient {
     includeQuote?: boolean;
     idempotencyKey?: string;
     replyTo?: string;
+    cc?: string[];
     attachments?: { path: string; filename: string; contentType: string }[];
   }) {
     const idempotencyKey = params.idempotencyKey ?? crypto.randomUUID();
@@ -82,6 +83,9 @@ export class OpenMailHttpClient {
         formData.append("includeQuote", "false");
       }
       if (params.replyTo) formData.append("replyTo", params.replyTo);
+      if (params.cc?.length) {
+        for (const addr of params.cc) formData.append("cc", addr);
+      }
 
       for (const att of params.attachments) {
         const data = await readFile(att.path);
@@ -96,7 +100,7 @@ export class OpenMailHttpClient {
       });
     }
 
-    const payload: Record<string, string | boolean> = {
+    const payload: Record<string, unknown> = {
       to: params.to,
       subject: params.subject,
       body: params.body,
@@ -105,6 +109,7 @@ export class OpenMailHttpClient {
     if (params.threadId) payload.threadId = params.threadId;
     if (params.includeQuote === false) payload.includeQuote = false;
     if (params.replyTo) payload.replyTo = params.replyTo;
+    if (params.cc?.length) payload.cc = params.cc;
 
     return this.post(url, payload, {
       "Idempotency-Key": idempotencyKey,
