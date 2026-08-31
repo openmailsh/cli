@@ -58,6 +58,7 @@ export class OpenMailHttpClient {
   async sendEmail(params: {
     inboxId: string;
     to: string;
+    cc?: string[];
     subject: string;
     body: string;
     bodyHtml?: string;
@@ -82,6 +83,9 @@ export class OpenMailHttpClient {
         formData.append("includeQuote", "false");
       }
       if (params.replyTo) formData.append("replyTo", params.replyTo);
+      for (const address of params.cc ?? []) {
+        formData.append("cc", address);
+      }
 
       for (const att of params.attachments) {
         const data = await readFile(att.path);
@@ -96,11 +100,12 @@ export class OpenMailHttpClient {
       });
     }
 
-    const payload: Record<string, string | boolean> = {
+    const payload: Record<string, string | boolean | string[]> = {
       to: params.to,
       subject: params.subject,
       body: params.body,
     };
+    if (params.cc?.length) payload.cc = params.cc;
     if (params.bodyHtml) payload.bodyHtml = params.bodyHtml;
     if (params.threadId) payload.threadId = params.threadId;
     if (params.includeQuote === false) payload.includeQuote = false;

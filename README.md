@@ -47,6 +47,10 @@ openmail inbox delete --id inb_xxx
 # Send email (uses default inbox from setup/init, or pass --inbox-id)
 openmail send --to hello@example.com --subject "Hi" --body "Hello"
 
+# Send to multiple recipients (--to is one address; repeat --cc for the rest)
+openmail send --to a@example.com --cc b@example.com --cc c@example.com \
+  --subject "Hi" --body "Hello"
+
 # Send with a custom Reply-To
 # (free plan: must be an inbox you own; Pro+: any address)
 openmail send --to hello@example.com --subject "Hi" --body "Hello" \
