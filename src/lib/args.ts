@@ -83,11 +83,16 @@ export function getNumberFlag(
 }
 
 /**
- * Collects all values for a repeated flag from process.argv.
+ * Collects all values for a repeated flag from an argv list.
  * e.g. `--attach a.pdf --attach b.pdf` → ["a.pdf", "b.pdf"]
+ *
+ * Defaults to `process.argv` (minus the node/script prefix) so callers can
+ * keep passing nothing; pass an explicit argv to make it testable.
  */
-export function getRepeatedStringFlag(key: string): string[] {
-  const argv = process.argv.slice(2);
+export function getRepeatedStringFlag(
+  key: string,
+  argv: string[] = process.argv.slice(2),
+): string[] {
   const flag = `--${key}`;
   const results: string[] = [];
   for (let i = 0; i < argv.length; i++) {
@@ -99,4 +104,24 @@ export function getRepeatedStringFlag(key: string): string[] {
     }
   }
   return results;
+}
+
+/**
+ * Counts how many times a flag appears in an argv list, in either form
+ * (`--to x` or `--to=x`). Used to reject flags that must not be repeated,
+ * e.g. `--to`, which `parseArgs` would otherwise silently collapse to its
+ * last value.
+ */
+export function countFlagOccurrences(
+  key: string,
+  argv: string[] = process.argv.slice(2),
+): number {
+  const flag = `--${key}`;
+  let count = 0;
+  for (const token of argv) {
+    if (token === flag || token.startsWith(`${flag}=`)) {
+      count += 1;
+    }
+  }
+  return count;
 }
