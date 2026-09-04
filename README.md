@@ -39,20 +39,16 @@ openmail setup [--mode websocket|webhook]
 openmail init [--mailbox-name john] [--display-name "John Smith"]
 
 # Manage inboxes
-openmail inbox list --limit 10
-openmail inbox create [--mailbox-name <name>] [--display-name <sender name>] [--domain <domain>] [--webhook-url <url>]
-openmail inbox get --id inb_xxx
-openmail inbox delete --id inb_xxx
+openmail inbox list [--pod-id pod_xxx] --limit 10
+openmail inbox create [--mailbox-name <name>] [--display-name <sender name>] [--domain <domain>] [--pod-id <pod_id>]
+openmail inbox get --inbox-id inb_xxx
+openmail inbox delete --inbox-id inb_xxx
 
-# Create a child inbox for another agent: --with-key also mints an inbox-scoped
-# API key. Run with a pod-scoped key; the returned apiKey.token can only
-# read/send from that inbox and is shown once. Use --json to hand it over.
-openmail inbox create --with-key [--display-name "Research agent"] [--key-name <name>] --json
-
-# Manage inbox-scoped API keys (account-wide or pod-scoped key required)
-openmail inbox keys create --id inb_xxx [--name <name>]
-openmail inbox keys list --id inb_xxx
-openmail inbox keys revoke --id inb_xxx --key-id key_xxx
+# Inbox-scoped API keys: can only read and send from that one inbox.
+# Needs an account-wide or pod-scoped key. Token is shown once.
+openmail inbox keys create --inbox-id inb_xxx [--name <name>] --json
+openmail inbox keys list --inbox-id inb_xxx
+openmail inbox keys revoke --inbox-id inb_xxx --key-id key_xxx
 
 # Send email (uses default inbox from setup/init, or pass --inbox-id)
 openmail send --to hello@example.com --subject "Hi" --body "Hello"

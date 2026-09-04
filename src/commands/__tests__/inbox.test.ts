@@ -3,69 +3,30 @@ import { parseArgs } from "../../lib/args";
 import type { OpenMailHttpClient } from "../../lib/http";
 import { runInboxCommand } from "../inbox";
 
-type Call = { method: string; path: string; body?: unknown };
+type Call = { method: string; path: string; body?: unknown; query?: unknown };
 
-function fakeClient(handlers: {
-  post?: (path: string, body: unknown) => unknown;
-  get?: (path: string) => unknown;
-  delete?: (path: string) => unknown;
-}) {
+function fakeClient() {
   const calls: Call[] = [];
   const client = {
     async post(path: string, body?: unknown) {
       calls.push({ method: "POST", path, body });
-      return handlers.post ? handlers.post(path, body) : {};
+      return {};
     },
-    async get(path: string) {
-      calls.push({ method: "GET", path });
-      return handlers.get ? handlers.get(path) : {};
+    async get(path: string, query?: unknown) {
+      calls.push({ method: "GET", path, query });
+      return {};
     },
     async delete(path: string) {
       calls.push({ method: "DELETE", path });
-      return handlers.delete ? handlers.delete(path) : { ok: true };
+      return { ok: true };
     },
   } as unknown as OpenMailHttpClient;
   return { client, calls };
 }
 
-describe("inbox create --with-key", () => {
-  it("creates the inbox, then mints an inbox-scoped key for it", async () => {
-    const inbox = { id: "inb_1", address: "a@openmail.sh", podId: "pod_1" };
-    const apiKey = { id: "key_1", inboxId: "inb_1", token: "om_secret" };
-    const { client, calls } = fakeClient({
-      post: (path) => (path === "/v1/inboxes" ? inbox : apiKey),
-    });
-
-    const result = await runInboxCommand(
-      client,
-      parseArgs(["inbox", "create", "--with-key", "--display-name", "Child", "--key-name", "child-1"]),
-    );
-
-    expect(result).toEqual({ inbox, apiKey });
-    expect(calls).toEqual([
-      { method: "POST", path: "/v1/inboxes", body: { displayName: "Child" } },
-      { method: "POST", path: "/v1/inboxes/inb_1/api-keys", body: { name: "child-1" } },
-    ]);
-  });
-
-  it("deletes the inbox and rethrows when minting fails", async () => {
-    const { client, calls } = fakeClient({
-      post: (path) => {
-        if (path === "/v1/inboxes") return { id: "inb_1" };
-        throw new Error("mint failed");
-      },
-    });
-
-    await expect(runInboxCommand(client, parseArgs(["inbox", "create", "--with-key"]))).rejects.toThrow(
-      "mint failed",
-    );
-    expect(calls.at(-1)).toEqual({ method: "DELETE", path: "/v1/inboxes/inb_1" });
-  });
-});
-
 describe("inbox create", () => {
-  it("forwards domain and webhook flags", async () => {
-    const { client, calls } = fakeClient({});
+  it("forwards only the flags that were given", async () => {
+    const { client, calls } = fakeClient();
     await runInboxCommand(
       client,
       parseArgs([
@@ -75,48 +36,87 @@ describe("inbox create", () => {
         "bob",
         "--domain",
         "mail.example.com",
-        "--webhook-url",
-        "https://example.com/hook",
+        "--pod-id",
+        "pod_1",
       ]),
     );
     expect(calls[0]).toEqual({
       method: "POST",
       path: "/v1/inboxes",
-      body: {
-        mailboxName: "bob",
-        domain: "mail.example.com",
-        webhookUrl: "https://example.com/hook",
-      },
+      body: { mailboxName: "bob", domain: "mail.example.com", podId: "pod_1" },
     });
+  });
+
+  it("sends an empty body when no flags are given", async () => {
+    const { client, calls } = fakeClient();
+    await runInboxCommand(client, parseArgs(["inbox", "create"]));
+    expect(calls[0]).toEqual({ method: "POST", path: "/v1/inboxes", body: {} });
+  });
+});
+
+describe("inbox list", () => {
+  it("passes --pod-id through as a query filter", async () => {
+    const { client, calls } = fakeClient();
+    await runInboxCommand(client, parseArgs(["inbox", "list", "--pod-id", "pod_1", "--limit", "5"]));
+    expect(calls[0]).toEqual({
+      method: "GET",
+      path: "/v1/inboxes",
+      query: { limit: 5, offset: undefined, podId: "pod_1" },
+    });
+  });
+});
+
+describe("inbox get/delete", () => {
+  it("uses --inbox-id", async () => {
+    const { client, calls } = fakeClient();
+    await runInboxCommand(client, parseArgs(["inbox", "get", "--inbox-id", "inb_1"]));
+    await runInboxCommand(client, parseArgs(["inbox", "delete", "--inbox-id", "inb_1"]));
+    expect(calls.map((c) => [c.method, c.path])).toEqual([
+      ["GET", "/v1/inboxes/inb_1"],
+      ["DELETE", "/v1/inboxes/inb_1"],
+    ]);
+  });
+
+  it("still accepts the legacy --id alias", async () => {
+    const { client, calls } = fakeClient();
+    await runInboxCommand(client, parseArgs(["inbox", "get", "--id", "inb_1"]));
+    expect(calls[0].path).toBe("/v1/inboxes/inb_1");
+  });
+
+  it("errors without an inbox id", async () => {
+    const { client } = fakeClient();
+    await expect(runInboxCommand(client, parseArgs(["inbox", "get"]))).rejects.toThrow(
+      "missing --inbox-id",
+    );
   });
 });
 
 describe("inbox keys", () => {
   it("creates, lists and revokes keys under the inbox", async () => {
-    const { client, calls } = fakeClient({});
+    const { client, calls } = fakeClient();
     await runInboxCommand(
       client,
-      parseArgs(["inbox", "keys", "create", "--id", "inb_1", "--name", "n"]),
+      parseArgs(["inbox", "keys", "create", "--inbox-id", "inb_1", "--name", "n"]),
     );
-    await runInboxCommand(client, parseArgs(["inbox", "keys", "list", "--id", "inb_1"]));
+    await runInboxCommand(client, parseArgs(["inbox", "keys", "list", "--inbox-id", "inb_1"]));
     await runInboxCommand(
       client,
-      parseArgs(["inbox", "keys", "revoke", "--id", "inb_1", "--key-id", "key_9"]),
+      parseArgs(["inbox", "keys", "revoke", "--inbox-id", "inb_1", "--key-id", "key_9"]),
     );
     expect(calls).toEqual([
       { method: "POST", path: "/v1/inboxes/inb_1/api-keys", body: { name: "n" } },
-      { method: "GET", path: "/v1/inboxes/inb_1/api-keys" },
+      { method: "GET", path: "/v1/inboxes/inb_1/api-keys", query: undefined },
       { method: "DELETE", path: "/v1/inboxes/inb_1/api-keys/key_9" },
     ]);
   });
 
-  it("requires --id and --key-id", async () => {
-    const { client } = fakeClient({});
+  it("requires --inbox-id and --key-id", async () => {
+    const { client } = fakeClient();
     await expect(
       runInboxCommand(client, parseArgs(["inbox", "keys", "list"])),
-    ).rejects.toThrow("missing --id");
+    ).rejects.toThrow("missing --inbox-id");
     await expect(
-      runInboxCommand(client, parseArgs(["inbox", "keys", "revoke", "--id", "inb_1"])),
+      runInboxCommand(client, parseArgs(["inbox", "keys", "revoke", "--inbox-id", "inb_1"])),
     ).rejects.toThrow("missing --key-id");
   });
 });
