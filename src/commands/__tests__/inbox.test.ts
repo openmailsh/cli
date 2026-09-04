@@ -28,7 +28,7 @@ function fakeClient(handlers: {
   return { client, calls };
 }
 
-describe("inbox spawn", () => {
+describe("inbox create --with-key", () => {
   it("creates the inbox, then mints an inbox-scoped key for it", async () => {
     const inbox = { id: "inb_1", address: "a@openmail.sh", podId: "pod_1" };
     const apiKey = { id: "key_1", inboxId: "inb_1", token: "om_secret" };
@@ -38,7 +38,7 @@ describe("inbox spawn", () => {
 
     const result = await runInboxCommand(
       client,
-      parseArgs(["inbox", "spawn", "--display-name", "Child", "--key-name", "child-1"]),
+      parseArgs(["inbox", "create", "--with-key", "--display-name", "Child", "--key-name", "child-1"]),
     );
 
     expect(result).toEqual({ inbox, apiKey });
@@ -56,7 +56,7 @@ describe("inbox spawn", () => {
       },
     });
 
-    await expect(runInboxCommand(client, parseArgs(["inbox", "spawn"]))).rejects.toThrow(
+    await expect(runInboxCommand(client, parseArgs(["inbox", "create", "--with-key"]))).rejects.toThrow(
       "mint failed",
     );
     expect(calls.at(-1)).toEqual({ method: "DELETE", path: "/v1/inboxes/inb_1" });

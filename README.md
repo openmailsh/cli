@@ -44,10 +44,10 @@ openmail inbox create [--mailbox-name <name>] [--display-name <sender name>] [--
 openmail inbox get --id inb_xxx
 openmail inbox delete --id inb_xxx
 
-# Spawn a child inbox: create it and mint an inbox-scoped API key in one step.
-# Run with a pod-scoped key; the returned apiKey.token can only read/send from
-# that inbox and is shown once. Use --json to hand it to a child agent.
-openmail inbox spawn [--display-name "Research agent"] [--key-name <name>] --json
+# Create a child inbox for another agent: --with-key also mints an inbox-scoped
+# API key. Run with a pod-scoped key; the returned apiKey.token can only
+# read/send from that inbox and is shown once. Use --json to hand it over.
+openmail inbox create --with-key [--display-name "Research agent"] [--key-name <name>] --json
 
 # Manage inbox-scoped API keys (account-wide or pod-scoped key required)
 openmail inbox keys create --id inb_xxx [--name <name>]

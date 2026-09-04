@@ -1,5 +1,5 @@
 import type { ParsedArgs } from "../lib/args";
-import { getNumberFlag, getStringFlag } from "../lib/args";
+import { getBooleanFlag, getNumberFlag, getStringFlag } from "../lib/args";
 import type { OpenMailHttpClient } from "../lib/http";
 
 type CreatedInbox = { id: string; address: string; podId: string | null };
@@ -7,15 +7,13 @@ type CreatedInbox = { id: string; address: string; podId: string | null };
 export async function runInboxCommand(client: OpenMailHttpClient, parsed: ParsedArgs) {
   const action = parsed.command[1];
   if (!action) {
-    throw new Error("missing inbox action (create|spawn|list|get|delete|keys)");
+    throw new Error("missing inbox action (create|list|get|delete|keys)");
   }
 
   if (action === "create") {
-    return client.post("/v1/inboxes", buildCreateBody(parsed));
-  }
-
-  if (action === "spawn") {
-    return spawnInbox(client, parsed);
+    return getBooleanFlag(parsed.flags, "with-key")
+      ? createInboxWithKey(client, parsed)
+      : client.post("/v1/inboxes", buildCreateBody(parsed));
   }
 
   if (action === "list") {
@@ -75,14 +73,15 @@ async function runInboxKeysCommand(client: OpenMailHttpClient, parsed: ParsedArg
 }
 
 /**
- * Create an inbox and mint an inbox-scoped key for it in one step. This is
- * how a parent agent holding a pod-scoped key provisions a child: the child
- * gets `apiKey.token` and can only read/send from `inbox`, nothing else.
+ * `inbox create --with-key`: create an inbox and mint an inbox-scoped key for
+ * it in one step. This is how a parent agent holding a pod-scoped key
+ * provisions a child: the child gets `apiKey.token` and can only read/send
+ * from `inbox`, nothing else.
  *
  * The raw token is returned once and never retrievable again. If minting
  * fails the inbox is deleted so a key-less inbox is not left behind.
  */
-async function spawnInbox(client: OpenMailHttpClient, parsed: ParsedArgs) {
+async function createInboxWithKey(client: OpenMailHttpClient, parsed: ParsedArgs) {
   const inbox = (await client.post("/v1/inboxes", buildCreateBody(parsed))) as CreatedInbox;
   const keyName = getStringFlag(parsed.flags, "key-name");
   try {
