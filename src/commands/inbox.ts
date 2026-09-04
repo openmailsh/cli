@@ -5,39 +5,130 @@ import type { OpenMailHttpClient } from "../lib/http";
 export async function runInboxCommand(client: OpenMailHttpClient, parsed: ParsedArgs) {
   const action = parsed.command[1];
   if (!action) {
-    throw new Error("missing inbox action (create|list|get|delete)");
+    throw new Error("missing inbox action (create|list|get|update|delete|keys|webhook)");
   }
 
   if (action === "create") {
     const mailboxName = getStringFlag(parsed.flags, "mailbox-name");
     const displayName = getStringFlag(parsed.flags, "display-name");
+    const domain = getStringFlag(parsed.flags, "domain");
+    const podId = getStringFlag(parsed.flags, "pod-id");
     return client.post("/v1/inboxes", {
       ...(mailboxName ? { mailboxName } : {}),
       ...(displayName ? { displayName } : {}),
+      ...(domain ? { domain } : {}),
+      ...(podId ? { podId } : {}),
     });
   }
 
   if (action === "list") {
     const limit = getNumberFlag(parsed.flags, "limit");
     const offset = getNumberFlag(parsed.flags, "offset");
-    return client.get("/v1/inboxes", { limit, offset });
+    const podId = getStringFlag(parsed.flags, "pod-id");
+    return client.get("/v1/inboxes", { limit, offset, podId });
   }
 
   if (action === "get") {
-    const id = getStringFlag(parsed.flags, "id");
-    if (!id) {
-      throw new Error("missing --id");
-    }
-    return client.get(`/v1/inboxes/${encodeURIComponent(id)}`);
+    return client.get(inboxPath(parsed));
   }
 
   if (action === "delete") {
-    const id = getStringFlag(parsed.flags, "id");
-    if (!id) {
-      throw new Error("missing --id");
+    return client.delete(inboxPath(parsed));
+  }
+
+  if (action === "update") {
+    const displayName = getStringFlag(parsed.flags, "display-name");
+    if (!displayName) {
+      throw new Error("nothing to update (pass --display-name)");
     }
-    return client.delete(`/v1/inboxes/${encodeURIComponent(id)}`);
+    return client.patch(inboxPath(parsed), { displayName });
+  }
+
+  if (action === "keys") {
+    return runInboxKeysCommand(client, parsed);
+  }
+
+  if (action === "webhook") {
+    return runInboxWebhookCommand(client, parsed);
   }
 
   throw new Error(`unknown inbox action: ${action}`);
+}
+
+/**
+ * `inbox webhook set|clear|rotate-secret|test --inbox-id <id>`: the webhook
+ * an inbox POSTs events to. Set after creating the inbox, only if the agent
+ * wants to react to mail in real time. Account-wide key only (API rule).
+ */
+async function runInboxWebhookCommand(client: OpenMailHttpClient, parsed: ParsedArgs) {
+  const action = parsed.command[2];
+  if (!action) {
+    throw new Error("missing inbox webhook action (set|clear|rotate-secret|test)");
+  }
+  const base = inboxPath(parsed);
+
+  if (action === "set") {
+    const url = getStringFlag(parsed.flags, "url");
+    if (!url) {
+      throw new Error("missing --url");
+    }
+    return client.patch(base, { webhookUrl: url });
+  }
+
+  if (action === "clear") {
+    return client.patch(base, { webhookUrl: null });
+  }
+
+  if (action === "rotate-secret") {
+    return client.post(`${base}/webhook/rotate-secret`);
+  }
+
+  if (action === "test") {
+    return client.post(`${base}/webhook/test`);
+  }
+
+  throw new Error(`unknown inbox webhook action: ${action}`);
+}
+
+/**
+ * `inbox keys create|list|revoke --inbox-id <id>`: manage inbox-scoped API
+ * keys. Needs an account-wide or pod-scoped key; an inbox-scoped key cannot
+ * mint further keys (the API answers 403). The raw token is returned once,
+ * at creation, and never retrievable again.
+ */
+async function runInboxKeysCommand(client: OpenMailHttpClient, parsed: ParsedArgs) {
+  const action = parsed.command[2];
+  if (!action) {
+    throw new Error("missing inbox keys action (create|list|revoke)");
+  }
+  const base = `${inboxPath(parsed)}/api-keys`;
+
+  if (action === "create") {
+    const name = getStringFlag(parsed.flags, "name");
+    return client.post(base, name ? { name } : {});
+  }
+
+  if (action === "list") {
+    return client.get(base);
+  }
+
+  if (action === "revoke") {
+    const keyId = getStringFlag(parsed.flags, "key-id");
+    if (!keyId) {
+      throw new Error("missing --key-id");
+    }
+    return client.delete(`${base}/${encodeURIComponent(keyId)}`);
+  }
+
+  throw new Error(`unknown inbox keys action: ${action}`);
+}
+
+// `--id` is accepted as an undocumented alias so existing `inbox get|delete
+// --id` invocations in installed skills keep working.
+function inboxPath(parsed: ParsedArgs): string {
+  const inboxId = getStringFlag(parsed.flags, "inbox-id") ?? getStringFlag(parsed.flags, "id");
+  if (!inboxId) {
+    throw new Error("missing --inbox-id");
+  }
+  return `/v1/inboxes/${encodeURIComponent(inboxId)}`;
 }
