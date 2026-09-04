@@ -40,9 +40,19 @@ openmail init [--mailbox-name john] [--display-name "John Smith"]
 
 # Manage inboxes
 openmail inbox list --limit 10
-openmail inbox create [--mailbox-name <name>] [--display-name <sender name>]
+openmail inbox create [--mailbox-name <name>] [--display-name <sender name>] [--domain <domain>] [--webhook-url <url>]
 openmail inbox get --id inb_xxx
 openmail inbox delete --id inb_xxx
+
+# Spawn a child inbox: create it and mint an inbox-scoped API key in one step.
+# Run with a pod-scoped key; the returned apiKey.token can only read/send from
+# that inbox and is shown once. Use --json to hand it to a child agent.
+openmail inbox spawn [--display-name "Research agent"] [--key-name <name>] --json
+
+# Manage inbox-scoped API keys (account-wide or pod-scoped key required)
+openmail inbox keys create --id inb_xxx [--name <name>]
+openmail inbox keys list --id inb_xxx
+openmail inbox keys revoke --id inb_xxx --key-id key_xxx
 
 # Send email (uses default inbox from setup/init, or pass --inbox-id)
 openmail send --to hello@example.com --subject "Hi" --body "Hello"
