@@ -3,6 +3,10 @@
 import { getBooleanFlag, parseArgs } from "./lib/args";
 import { version } from "../package.json";
 import { runInboxCommand } from "./commands/inbox";
+import { runPodCommand } from "./commands/pod";
+import { runDomainCommand } from "./commands/domain";
+import { runPolicyCommand } from "./commands/policy";
+import { runAttachmentsCommand } from "./commands/attachments";
 import { runMessagesCommand } from "./commands/messages";
 import { runThreadsCommand } from "./commands/threads";
 import { runSendCommand } from "./commands/send";
@@ -207,6 +211,14 @@ async function main() {
     });
   } else if (command === "inbox") {
     output = await runInboxCommand(client, parsed);
+  } else if (command === "pod") {
+    output = await runPodCommand(client, parsed);
+  } else if (command === "domain") {
+    output = await runDomainCommand(client, parsed);
+  } else if (command === "policy") {
+    output = await runPolicyCommand(client, parsed);
+  } else if (command === "attachments") {
+    output = await runAttachmentsCommand(client, parsed);
   } else if (command === "send") {
     const inboxId = await resolveInboxIdWithFallback({
       client,
@@ -311,10 +323,14 @@ function printHelp(topic?: string) {
         "  setup      OpenClaw setup (current default integration)",
         "  status     Show current OpenMail/OpenClaw runtime status",
         "  init       Create a new inbox and set as default",
-        "  inbox      Manage inboxes",
+        "  inbox      Manage inboxes, inbox API keys, and webhooks",
+        "  pod        Manage pods and pod API keys",
+        "  domain     Manage custom sending domains",
+        "  policy     Correspondent policy: who may email an inbox, who it may email",
         "  send       Send an email",
         "  messages   List messages for an inbox",
         "  threads    List/get threads",
+        "  attachments  Download or extract text from an attachment",
         "  feedback   Report a bug, friction, or feature request to the OpenMail team",
         "  openclaw   OpenClaw setup helpers",
         "  ws         WebSocket utilities (bridge)",
@@ -403,10 +419,15 @@ function printHelp(topic?: string) {
         "  create [--mailbox-name <name>] [--display-name <sender name>] [--domain <domain>] [--pod-id <pod_id>]",
         "  list [--pod-id <pod_id>] [--limit <n>] [--offset <n>]",
         "  get --inbox-id <inbox_id>",
+        "  update --inbox-id <inbox_id> --display-name <sender name>",
         "  delete --inbox-id <inbox_id>",
         "  keys create --inbox-id <inbox_id> [--name <name>]",
         "  keys list --inbox-id <inbox_id>",
         "  keys revoke --inbox-id <inbox_id> --key-id <key_id>",
+        "  webhook set --inbox-id <inbox_id> --url <url>",
+        "  webhook clear --inbox-id <inbox_id>",
+        "  webhook rotate-secret --inbox-id <inbox_id>",
+        "  webhook test --inbox-id <inbox_id>",
         "",
         "create: --domain picks a verified custom domain for the address; --pod-id",
         "places the inbox in a pod (a pod-scoped key always creates in its own pod).",
@@ -415,10 +436,121 @@ function printHelp(topic?: string) {
         "Needs an account-wide or pod-scoped key; inbox-scoped keys cannot mint",
         "keys. The token is shown once at creation and never retrievable again.",
         "",
+        "webhook: where the inbox POSTs events (new message, delivery, bounce).",
+        "Set it only if you want to react in real time; otherwise poll with",
+        "`threads list --is-read false`. Account-wide key only.",
+        "",
         "Examples:",
         "  openmail inbox create --display-name \"Research agent\" --json",
         "  openmail inbox keys create --inbox-id inb_xxx --name research --json",
-        "  openmail inbox keys revoke --inbox-id inb_xxx --key-id key_xxx",
+        "  openmail inbox webhook set --inbox-id inb_xxx --url https://example.com/hooks/openmail",
+        "",
+        ...globalFlags,
+      ].join("\n"),
+    );
+    return;
+  }
+
+  if (usage === "pod") {
+    process.stdout.write(
+      [
+        "openmail pod",
+        "",
+        "Subcommands:",
+        "  create [--name <label>] [--client-id <your id>]",
+        "  list [--limit <n>] [--offset <n>]",
+        "  get --pod-id <pod_id>",
+        "  update --pod-id <pod_id> [--name <label>] [--client-id <your id>]",
+        "  delete --pod-id <pod_id>",
+        "  keys create --pod-id <pod_id> [--name <name>]",
+        "  keys list --pod-id <pod_id>",
+        "  keys revoke --pod-id <pod_id> --key-id <key_id>",
+        "",
+        "A pod groups inboxes and domains. Use one pod per agent (or per tenant)",
+        "and give that agent a pod-scoped key: it can create and use inboxes in",
+        "its pod and nothing outside it. --client-id is your own stable id for the",
+        "pod and can be used in place of the pod id everywhere. Pod management",
+        "needs an account-wide key. Key tokens are shown once at creation.",
+        "",
+        "Examples:",
+        "  openmail pod create --name research --json",
+        "  openmail pod keys create --pod-id pod_xxx --name research --json",
+        "",
+        ...globalFlags,
+      ].join("\n"),
+    );
+    return;
+  }
+
+  if (usage === "domain") {
+    process.stdout.write(
+      [
+        "openmail domain",
+        "",
+        "Subcommands:",
+        "  add --domain <mail.example.com> [--pod-id <pod_id>]",
+        "  list [--limit <n>] [--offset <n>]",
+        "  get --domain-id <domain_id>",
+        "  verify --domain-id <domain_id>",
+        "  delete --domain-id <domain_id>",
+        "",
+        "add returns the DNS records to publish; verify re-checks them. Once",
+        "verified, create inboxes on it with `inbox create --domain`. --pod-id",
+        "restricts the domain to one pod; omit it for an account-wide domain.",
+        "",
+        ...globalFlags,
+      ].join("\n"),
+    );
+    return;
+  }
+
+  if (usage === "policy") {
+    process.stdout.write(
+      [
+        "openmail policy",
+        "",
+        "Subcommands:",
+        "  get [--pod-id <id> | --inbox-id <id>]",
+        "  mode --direction inbound|outbound --mode none|allowlist|inherit [--pod-id | --inbox-id]",
+        "  allow --value <addr|domain|*.domain> --direction inbound|outbound [--pod-id | --inbox-id]",
+        "  block --value <addr|domain|*.domain> --direction inbound|outbound [--pod-id | --inbox-id]",
+        "  rules remove --rule-id <rule_id> [--pod-id | --inbox-id]",
+        "  audit [--action <a>] [--direction inbound|outbound] [--since <iso>] [--until <iso>] [--limit <n>] [--offset <n>]",
+        "",
+        "Correspondent policy controls who may email an inbox (inbound) and who",
+        "it may email (outbound, enforced on To/Cc/Reply-To). Scope defaults to",
+        "the account; --pod-id or --inbox-id targets one pod or inbox. Modes:",
+        "  none       no filtering",
+        "  allowlist  only allowed correspondents (an empty allowlist denies all)",
+        "  inherit    defer to the parent scope (pod, then account)",
+        "A pod-scoped key may only change its own pod and its inboxes, and cannot",
+        "set `none` or add allows beyond a parent allowlist. Inbox keys cannot",
+        "read or change policy.",
+        "",
+        "Examples:",
+        "  openmail policy mode --inbox-id inb_xxx --direction inbound --mode allowlist",
+        "  openmail policy allow --inbox-id inb_xxx --direction inbound --value marc@example.com",
+        "  openmail policy block --direction outbound --value *.competitor.com",
+        "",
+        ...globalFlags,
+      ].join("\n"),
+    );
+    return;
+  }
+
+  if (usage === "attachments") {
+    process.stdout.write(
+      [
+        "openmail attachments",
+        "",
+        "Subcommands:",
+        "  text --message-id <id> --filename <name>",
+        "  get --message-id <id> --filename <name> [--out <path>]",
+        "",
+        "text extracts plain text from PDF, DOCX, XLSX, PPTX and images (OCR) —",
+        "use this to read an attachment without parsing the file yourself.",
+        "get downloads the raw file (default: the attachment's filename in cwd).",
+        "Message ids and filenames come from `threads get` / `messages list`.",
         "",
         ...globalFlags,
       ].join("\n"),

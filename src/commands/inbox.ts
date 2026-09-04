@@ -5,7 +5,7 @@ import type { OpenMailHttpClient } from "../lib/http";
 export async function runInboxCommand(client: OpenMailHttpClient, parsed: ParsedArgs) {
   const action = parsed.command[1];
   if (!action) {
-    throw new Error("missing inbox action (create|list|get|delete|keys)");
+    throw new Error("missing inbox action (create|list|get|update|delete|keys|webhook)");
   }
 
   if (action === "create") {
@@ -36,11 +36,58 @@ export async function runInboxCommand(client: OpenMailHttpClient, parsed: Parsed
     return client.delete(inboxPath(parsed));
   }
 
+  if (action === "update") {
+    const displayName = getStringFlag(parsed.flags, "display-name");
+    if (!displayName) {
+      throw new Error("nothing to update (pass --display-name)");
+    }
+    return client.patch(inboxPath(parsed), { displayName });
+  }
+
   if (action === "keys") {
     return runInboxKeysCommand(client, parsed);
   }
 
+  if (action === "webhook") {
+    return runInboxWebhookCommand(client, parsed);
+  }
+
   throw new Error(`unknown inbox action: ${action}`);
+}
+
+/**
+ * `inbox webhook set|clear|rotate-secret|test --inbox-id <id>`: the webhook
+ * an inbox POSTs events to. Set after creating the inbox, only if the agent
+ * wants to react to mail in real time. Account-wide key only (API rule).
+ */
+async function runInboxWebhookCommand(client: OpenMailHttpClient, parsed: ParsedArgs) {
+  const action = parsed.command[2];
+  if (!action) {
+    throw new Error("missing inbox webhook action (set|clear|rotate-secret|test)");
+  }
+  const base = inboxPath(parsed);
+
+  if (action === "set") {
+    const url = getStringFlag(parsed.flags, "url");
+    if (!url) {
+      throw new Error("missing --url");
+    }
+    return client.patch(base, { webhookUrl: url });
+  }
+
+  if (action === "clear") {
+    return client.patch(base, { webhookUrl: null });
+  }
+
+  if (action === "rotate-secret") {
+    return client.post(`${base}/webhook/rotate-secret`);
+  }
+
+  if (action === "test") {
+    return client.post(`${base}/webhook/test`);
+  }
+
+  throw new Error(`unknown inbox webhook action: ${action}`);
 }
 
 /**

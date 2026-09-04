@@ -20,6 +20,10 @@ function fakeClient() {
       calls.push({ method: "DELETE", path });
       return { ok: true };
     },
+    async patch(path: string, body?: unknown) {
+      calls.push({ method: "PATCH", path, body });
+      return {};
+    },
   } as unknown as OpenMailHttpClient;
   return { client, calls };
 }
@@ -88,6 +92,32 @@ describe("inbox get/delete", () => {
     await expect(runInboxCommand(client, parseArgs(["inbox", "get"]))).rejects.toThrow(
       "missing --inbox-id",
     );
+  });
+});
+
+describe("inbox update / webhook", () => {
+  it("patches display name and webhook url, posts rotate/test", async () => {
+    const { client, calls } = fakeClient();
+    const run = (argv: string[]) => runInboxCommand(client, parseArgs(argv));
+    await run(["inbox", "update", "--inbox-id", "inb_1", "--display-name", "Bot"]);
+    await run(["inbox", "webhook", "set", "--inbox-id", "inb_1", "--url", "https://x.io/h"]);
+    await run(["inbox", "webhook", "clear", "--inbox-id", "inb_1"]);
+    await run(["inbox", "webhook", "rotate-secret", "--inbox-id", "inb_1"]);
+    await run(["inbox", "webhook", "test", "--inbox-id", "inb_1"]);
+    expect(calls).toEqual([
+      { method: "PATCH", path: "/v1/inboxes/inb_1", body: { displayName: "Bot" } },
+      { method: "PATCH", path: "/v1/inboxes/inb_1", body: { webhookUrl: "https://x.io/h" } },
+      { method: "PATCH", path: "/v1/inboxes/inb_1", body: { webhookUrl: null } },
+      { method: "POST", path: "/v1/inboxes/inb_1/webhook/rotate-secret", body: undefined },
+      { method: "POST", path: "/v1/inboxes/inb_1/webhook/test", body: undefined },
+    ]);
+  });
+
+  it("requires --url on webhook set", async () => {
+    const { client } = fakeClient();
+    await expect(
+      runInboxCommand(client, parseArgs(["inbox", "webhook", "set", "--inbox-id", "inb_1"])),
+    ).rejects.toThrow("missing --url");
   });
 });
 
