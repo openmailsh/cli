@@ -51,8 +51,35 @@ export class OpenMailHttpClient {
     });
   }
 
+  async put(path: string, body?: unknown) {
+    return this.request(`${this.baseUrl}${path}`, {
+      method: "PUT",
+      body: body === undefined ? undefined : JSON.stringify(body),
+    });
+  }
+
   async delete(path: string) {
     return this.request(`${this.baseUrl}${path}`, { method: "DELETE" });
+  }
+
+  /** GET a binary response (attachments) as raw bytes. */
+  async download(path: string): Promise<{ bytes: Buffer; contentType: string | null }> {
+    const response = await fetch(`${this.baseUrl}${path}`, {
+      method: "GET",
+      headers: { Authorization: `Bearer ${this.apiKey}` },
+    });
+    if (!response.ok) {
+      const text = await response.text();
+      throw new ApiError(
+        `OpenMail API error (${response.status})`,
+        response.status,
+        tryParseJson(text) ?? text,
+      );
+    }
+    return {
+      bytes: Buffer.from(await response.arrayBuffer()),
+      contentType: response.headers.get("content-type"),
+    };
   }
 
   async sendEmail(params: {
