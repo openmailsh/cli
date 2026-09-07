@@ -3,6 +3,7 @@ import { readFileSync, unlinkSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { spawn, spawnSync } from "node:child_process";
+import { randomBytes } from "node:crypto";
 import { cancel, confirm, isCancel, select, text } from "@clack/prompts";
 import type { ParsedArgs } from "../lib/args";
 import { getBooleanFlag, getStringFlag } from "../lib/args";
@@ -152,33 +153,39 @@ export async function runOpenClawCommand(params: {
     buildSkillMarkdown({ agent: "openclaw" }),
   );
 
-  const envFilePath = path.join(openclawHome, "openmail.env");
-  const envLines = [
-    `OPENMAIL_API_KEY=${params.apiKey}`,
-    `OPENMAIL_INBOX_ID=${inbox?.id ?? ""}`,
-    `OPENMAIL_ADDRESS=${inbox?.address ?? ""}`,
-    ...(usageMode !== "tool" ? [`OPENMAIL_MODE=${usageMode}`] : []),
-    ...(hooksToken ? [`OPENCLAW_HOOK_TOKEN=${hooksToken}`] : []),
-  ];
-  const envWrite = await writeFileIfChanged(
-    envFilePath,
-    envLines.join("\n") + "\n",
-  );
-
   const skillEnv: Record<string, string> = {
     OPENMAIL_API_KEY: params.apiKey,
     OPENMAIL_INBOX_ID: inbox?.id ?? "",
     OPENMAIL_ADDRESS: inbox?.address ?? "",
     ...(usageMode !== "tool" ? { OPENMAIL_MODE: usageMode } : {}),
   };
-  const configChanged = await mergeSkillIntoOpenClawConfig(
-    openclawHome,
-    skillEnv,
-    { registerHookMapping: needsBridge },
-  );
-  if (configChanged && params.ctx.verbose) {
+  // Merge into openclaw.json before writing openmail.env: when a bridge is
+  // needed this enables OpenClaw's hook endpoint and mints hooks.token if
+  // the user has none yet, and the env file must carry that same token.
+  const configMerge = await mergeSkillIntoOpenClawConfig(openclawHome, skillEnv, {
+    registerHookMapping: needsBridge,
+    hookToken: hooksToken || undefined,
+  });
+  if (configMerge.changed && params.ctx.verbose) {
     logInfo(params.ctx, "Updated openclaw.json with OpenMail skill env.");
   }
+  if (configMerge.hooksEnabled && params.ctx.verbose) {
+    logInfo(params.ctx, "Enabled OpenClaw hooks (hooks.enabled + hooks.token).");
+  }
+  const resolvedHookToken = configMerge.hookToken ?? hooksToken;
+
+  const envFilePath = path.join(openclawHome, "openmail.env");
+  const envLines = [
+    `OPENMAIL_API_KEY=${params.apiKey}`,
+    `OPENMAIL_INBOX_ID=${inbox?.id ?? ""}`,
+    `OPENMAIL_ADDRESS=${inbox?.address ?? ""}`,
+    ...(usageMode !== "tool" ? [`OPENMAIL_MODE=${usageMode}`] : []),
+    ...(resolvedHookToken ? [`OPENCLAW_HOOK_TOKEN=${resolvedHookToken}`] : []),
+  ];
+  const envWrite = await writeFileIfChanged(
+    envFilePath,
+    envLines.join("\n") + "\n",
+  );
 
   // --- Bridge daemon (WebSocket) ---
   // Priority: systemd (Linux) > launchd (macOS) > detached background process
@@ -237,11 +244,11 @@ export async function runOpenClawCommand(params: {
   };
 }
 
-async function mergeSkillIntoOpenClawConfig(
+export async function mergeSkillIntoOpenClawConfig(
   openclawHome: string,
   env: Record<string, string>,
-  opts: { registerHookMapping: boolean },
-): Promise<boolean> {
+  opts: { registerHookMapping: boolean; hookToken?: string },
+): Promise<{ changed: boolean; hookToken?: string; hooksEnabled: boolean }> {
   const configPath = path.join(openclawHome, "openclaw.json");
   let config: Record<string, unknown> = {};
   try {
@@ -264,9 +271,31 @@ async function mergeSkillIntoOpenClawConfig(
   skills.entries = entries;
   config.skills = skills;
 
-  // --- hook mapping for POST /hooks/openmail ---
+  let hookToken: string | undefined;
+  let hooksEnabled = false;
+
+  // --- hook endpoint + mapping for POST /hooks/openmail ---
   if (opts.registerHookMapping) {
     const hooks = (config.hooks ?? {}) as Record<string, unknown>;
+
+    // A fresh OpenClaw ships with the hook endpoint off. The bridge POSTs to
+    // it, so turn it on and make sure a token exists — OpenClaw refuses
+    // `hooks.enabled` without `hooks.token`. Never overwrite a token the user
+    // already has; the gateway hot-reloads these keys, no restart needed.
+    const existingToken =
+      typeof hooks.token === "string" && hooks.token ? hooks.token : undefined;
+    hookToken = existingToken ?? opts.hookToken ?? randomBytes(24).toString("hex");
+    if (hooks.enabled !== true) {
+      hooks.enabled = true;
+      changed = true;
+      hooksEnabled = true;
+    }
+    if (hooks.token !== hookToken) {
+      hooks.token = hookToken;
+      changed = true;
+      hooksEnabled = true;
+    }
+
     const mappings = (
       Array.isArray(hooks.mappings) ? hooks.mappings : []
     ) as Record<string, unknown>[];
@@ -300,7 +329,7 @@ async function mergeSkillIntoOpenClawConfig(
   }
 
   if (!changed && existing.enabled === true) {
-    return false;
+    return { changed: false, hookToken, hooksEnabled };
   }
 
   await fs.writeFile(
@@ -308,7 +337,7 @@ async function mergeSkillIntoOpenClawConfig(
     JSON.stringify(config, null, 2) + "\n",
     "utf8",
   );
-  return true;
+  return { changed: true, hookToken, hooksEnabled };
 }
 
 function readOpenClawHookToken(openclawHome: string): string {
