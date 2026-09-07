@@ -72,6 +72,25 @@ describe("mergeSkillIntoOpenClawConfig", () => {
     expect((await readConfig()).hooks).toBeUndefined();
   });
 
+  it("writes a mode-specific hook message template", async () => {
+    await mergeSkillIntoOpenClawConfig(openclawHome, env, {
+      registerHookMapping: true,
+      usageMode: "channel",
+    });
+    const mapping = (await readConfig()).hooks?.mappings?.[0] as { messageTemplate: string };
+    expect(mapping.messageTemplate).toContain("channel mode");
+    expect(mapping.messageTemplate).toContain("{{thread_id}}");
+    expect(mapping.messageTemplate).toContain("{{email.body_text}}");
+
+    await mergeSkillIntoOpenClawConfig(openclawHome, env, {
+      registerHookMapping: true,
+      usageMode: "notify",
+    });
+    const notify = (await readConfig()).hooks?.mappings?.[0] as { messageTemplate: string };
+    expect(notify.messageTemplate).toContain("notify mode");
+    expect((await readConfig()).hooks?.mappings).toHaveLength(1);
+  });
+
   it("is idempotent on a second run", async () => {
     await mergeSkillIntoOpenClawConfig(openclawHome, env, { registerHookMapping: true });
     const second = await mergeSkillIntoOpenClawConfig(openclawHome, env, {

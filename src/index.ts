@@ -564,7 +564,7 @@ function printHelp(topic?: string) {
         "openmail send",
         "",
         "Usage:",
-        "  send --to <email> --subject <text> --body <text> [--inbox-id <id>]",
+        "  send --to <email> --subject <text> --body <text> [--inbox-id <id>]  (--subject optional with --thread-id)",
         "       [--cc <email>] [--thread-id <id>] [--no-quote]",
         "       [--idempotency-key <key>] [--reply-to <email>] [--attach <file>]",
         "",
