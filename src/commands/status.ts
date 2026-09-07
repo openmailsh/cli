@@ -194,7 +194,7 @@ function checkLaunchdBridgeStatus(): StatusResult["bridge"] {
   if (state === "running") {
     return { type: "launchd", status: "active" };
   }
-  const lastExit = /^\s*last exit code = (\S+)/m.exec(out)?.[1];
+  const lastExit = /^\s*last exit code = (.+)$/m.exec(out)?.[1]?.trim();
   if (lastExit && lastExit !== "0" && lastExit !== "(never exited)") {
     return { type: "launchd", status: "failed" };
   }
