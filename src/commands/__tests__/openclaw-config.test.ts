@@ -91,6 +91,24 @@ describe("mergeSkillIntoOpenClawConfig", () => {
     expect((await readConfig()).hooks?.mappings).toHaveLength(1);
   });
 
+  it("preserves user-set delivery fields on the existing mapping", async () => {
+    await mergeSkillIntoOpenClawConfig(openclawHome, env, { registerHookMapping: true });
+    const configPath = path.join(openclawHome, "openclaw.json");
+    const config = JSON.parse(await fs.readFile(configPath, "utf8"));
+    Object.assign(config.hooks.mappings[0], { channel: "whatsapp", to: "+123", deliver: true });
+    await fs.writeFile(configPath, JSON.stringify(config));
+
+    await mergeSkillIntoOpenClawConfig(openclawHome, env, {
+      registerHookMapping: true,
+      usageMode: "channel",
+    });
+    const mapping = (await readConfig()).hooks?.mappings?.[0] as Record<string, unknown>;
+    expect(mapping.channel).toBe("whatsapp");
+    expect(mapping.to).toBe("+123");
+    expect(mapping.deliver).toBe(true);
+    expect(String(mapping.messageTemplate)).toContain("channel mode");
+  });
+
   it("is idempotent on a second run", async () => {
     await mergeSkillIntoOpenClawConfig(openclawHome, env, { registerHookMapping: true });
     const second = await mergeSkillIntoOpenClawConfig(openclawHome, env, {

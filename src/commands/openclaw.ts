@@ -316,8 +316,11 @@ export async function mergeSkillIntoOpenClawConfig(
     };
 
     if (idx >= 0) {
-      if (JSON.stringify(mappings[idx]) !== JSON.stringify(openMailMapping)) {
-        mappings[idx] = openMailMapping;
+      // Keep fields we don't own (delivery: `channel`, `to`, `deliver`,
+      // `accountId`) so a user-configured route survives re-running setup.
+      const next = { ...mappings[idx], ...openMailMapping };
+      if (JSON.stringify(mappings[idx]) !== JSON.stringify(next)) {
+        mappings[idx] = next;
         changed = true;
       }
     } else {
