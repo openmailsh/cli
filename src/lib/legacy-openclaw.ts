@@ -40,7 +40,7 @@ export function legacyBridgeNotice(servicePath: string, platform = process.platf
       ? `launchctl unload -w "${servicePath}" && rm "${servicePath}"`
       : "systemctl --user disable --now openmail-openclaw-bridge.service";
   return [
-    `The OpenMail bridge at ${servicePath} is deprecated. Stop it and use the OpenClaw plugin:`,
+    "The OpenMail bridge is deprecated. Stop it and use the OpenClaw plugin:",
     "",
     `  ${stop}`,
     `  ${PLUGIN_INSTALL}`,
