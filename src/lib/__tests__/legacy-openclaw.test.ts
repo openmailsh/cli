@@ -17,7 +17,7 @@ describe("legacy openclaw pointers", () => {
 
   it("names the command and the plugin install", () => {
     const msg = removedCommandMessage("setup");
-    expect(msg).toContain("`openmail setup` was removed in 0.7.0");
+    expect(msg).toContain("`openmail setup` is deprecated");
     expect(msg).toContain("openclaw plugins install clawhub:@openmail/openclaw");
   });
 

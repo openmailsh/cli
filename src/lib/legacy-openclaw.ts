@@ -10,16 +10,16 @@ export const REMOVED_OPENCLAW_COMMANDS = new Set(["setup", "openclaw", "status",
 
 export const PLUGIN_INSTALL = "openclaw plugins install clawhub:@openmail/openclaw";
 
+export const DOCS_URL = "https://docs.openmail.sh/integrations/openclaw";
+
 export function removedCommandMessage(command: string): string {
   return [
-    `\`openmail ${command}\` was removed in 0.7.0.`,
-    "The OpenClaw integration is now a plugin that runs inside the OpenClaw gateway:",
+    `\`openmail ${command}\` is deprecated. Use the OpenClaw plugin:`,
     "",
     `  ${PLUGIN_INSTALL}`,
-    "  openclaw channels add --channel openmail --api-key <account or inbox key>",
+    "  openclaw channels add --channel openmail --api-key <key>",
     "",
-    "It replaces the CLI bridge, skill files and env setup; the CLI itself stays for API commands.",
-    "Docs: https://docs.openmail.sh/integrations/openclaw",
+    `More: ${DOCS_URL}`,
   ].join("\n");
 }
 
@@ -40,9 +40,11 @@ export function legacyBridgeNotice(servicePath: string, platform = process.platf
       ? `launchctl unload -w "${servicePath}" && rm "${servicePath}"`
       : "systemctl --user disable --now openmail-openclaw-bridge.service";
   return [
-    `Found the old OpenMail bridge service at ${servicePath}.`,
-    "Since 0.7.0 the CLI no longer runs it; the OpenClaw plugin does the same job inside the gateway.",
-    `  Stop it:  ${stop}`,
-    `  Replace:  ${PLUGIN_INSTALL}`,
+    `The OpenMail bridge at ${servicePath} is deprecated. Stop it and use the OpenClaw plugin:`,
+    "",
+    `  ${stop}`,
+    `  ${PLUGIN_INSTALL}`,
+    "",
+    `More: ${DOCS_URL}#upgrading-from-the-cli-bridge`,
   ].join("\n");
 }
