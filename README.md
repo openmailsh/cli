@@ -16,7 +16,7 @@ Requires Node.js 20+.
 export OPENMAIL_API_KEY=om_xxx
 ```
 
-Get your API key from the [Dashboard](https://console.openmail.sh).
+Get your API key from the [Dashboard](https://console.openmail.sh). Or pass it once to `openmail init --api-key om_xxx`, which saves it to `~/.openmail-cli/state.json` so later commands need no env var.
 
 ## Usage
 

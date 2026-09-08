@@ -1,3 +1,4 @@
+import os from "node:os";
 import type { ParsedArgs } from "../lib/args";
 import { getStringFlag } from "../lib/args";
 import type { OpenMailHttpClient } from "../lib/http";
@@ -5,6 +6,7 @@ import type { CliContext } from "../lib/output";
 import { logInfo } from "../lib/output";
 import { setDefaultInbox } from "../lib/inbox-default";
 import { resolveInboxCreateParams } from "../lib/inbox-create";
+import { readCliState, writeCliState } from "../lib/state";
 
 type Inbox = {
   id: string;
@@ -15,6 +17,8 @@ type Inbox = {
 export async function runInitCommand(params: {
   client: OpenMailHttpClient;
   parsed: ParsedArgs;
+  /** The API key the client authenticated with; persisted so later commands need no env. */
+  apiKey: string;
   statePath: string;
   ctx: CliContext;
 }) {
@@ -33,7 +37,16 @@ export async function runInitCommand(params: {
     id: inbox.id,
     address: inbox.address,
   });
+  const state = await readCliState(params.statePath);
+  state.savedApiKey = params.apiKey;
+  await writeCliState(params.statePath, state);
 
   logInfo(params.ctx, `Created inbox ${inbox.id} (${inbox.address})`);
-  return { inbox, created: true };
+  logInfo(params.ctx, `API key saved to ${displayPath(params.statePath)}.`);
+  return { inbox, created: true, apiKeySaved: true };
+}
+
+function displayPath(p: string): string {
+  const home = os.homedir();
+  return home && p.startsWith(home) ? `~${p.slice(home.length)}` : p;
 }
