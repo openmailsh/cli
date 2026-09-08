@@ -5,13 +5,6 @@ import { getBooleanFlag, getStringFlag } from "./args";
 import type { ParsedArgs } from "./args";
 import type { CliContext } from "./output";
 
-export class BridgeConfigError extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = "BridgeConfigError";
-  }
-}
-
 export type GlobalConfig = {
   apiKey?: string;
   baseUrl: string;
@@ -20,17 +13,9 @@ export type GlobalConfig = {
   verbose: boolean;
 };
 
-export type BridgeConfig = {
-  hookUrl: string;
-  hookToken: string;
-  statePath: string;
-  inboxIds?: string[];
-  eventTypes?: string[];
-};
-
 /**
- * Read a value from a .env file in the current directory.
- * Returns undefined if the file doesn't exist or the key isn't found.
+ * Read the API key saved by `openmail init` from the CLI state file.
+ * Returns undefined if the file doesn't exist or has no saved key.
  */
 function readSavedApiKey(statePath: string): string | undefined {
   try {
@@ -42,6 +27,10 @@ function readSavedApiKey(statePath: string): string | undefined {
   }
 }
 
+/**
+ * Read a value from a .env file in the current directory.
+ * Returns undefined if the file doesn't exist or the key isn't found.
+ */
 function readDotenv(key: string): string | undefined {
   let content: string;
   try {
@@ -92,49 +81,6 @@ export function resolveGlobalConfig(parsed: ParsedArgs): GlobalConfig {
   };
 }
 
-export function resolveBridgeConfig(parsed: ParsedArgs, globalStatePath: string): BridgeConfig {
-  const hookUrl =
-    getStringFlag(parsed.flags, "hook-url") ?? process.env.OPENCLAW_HOOK_URL ?? "";
-  const hookToken =
-    getStringFlag(parsed.flags, "hook-token") ??
-    process.env.OPENCLAW_HOOK_TOKEN ??
-    readOpenClawHookToken();
-  const statePath =
-    getStringFlag(parsed.flags, "state-path") ??
-    process.env.OPENMAIL_BRIDGE_STATE_PATH ??
-    globalStatePath;
-
-  const inboxIds = parseCsv(
-    getStringFlag(parsed.flags, "inbox-ids") ?? process.env.OPENMAIL_BRIDGE_INBOX_IDS,
-  );
-  const eventTypes = parseCsv(
-    getStringFlag(parsed.flags, "event-types") ?? process.env.OPENMAIL_BRIDGE_EVENT_TYPES,
-  );
-
-  if (!hookUrl) {
-    throw new BridgeConfigError("missing hook URL (set --hook-url or OPENCLAW_HOOK_URL)");
-  }
-  if (!hookToken) {
-    throw new BridgeConfigError("missing hook token (set --hook-token or OPENCLAW_HOOK_TOKEN)");
-  }
-  return { hookUrl, hookToken, statePath, inboxIds, eventTypes };
-}
-
-function readOpenClawHookToken(): string {
-  try {
-    const openclawHome =
-      process.env.OPENCLAW_HOME ?? path.join(os.homedir(), ".openclaw");
-    const raw = fs.readFileSync(
-      path.join(openclawHome, "openclaw.json"),
-      "utf8",
-    );
-    const config = JSON.parse(raw) as { hooks?: { token?: string } };
-    return config?.hooks?.token ?? "";
-  } catch {
-    return "";
-  }
-}
-
 export function requireApiKey(config: GlobalConfig) {
   if (!config.apiKey) {
     throw new Error("missing API key (set --api-key or OPENMAIL_API_KEY)");
@@ -154,15 +100,4 @@ function normalizeBaseUrl(input: string): string {
     return "https://api.openmail.sh";
   }
   return trimmed;
-}
-
-function parseCsv(value: string | undefined): string[] | undefined {
-  if (!value) {
-    return undefined;
-  }
-  const entries = value
-    .split(",")
-    .map((item) => item.trim())
-    .filter(Boolean);
-  return entries.length > 0 ? entries : undefined;
 }
