@@ -16,7 +16,7 @@ Requires Node.js 20+.
 export OPENMAIL_API_KEY=om_xxx
 ```
 
-Get your API key from the [Dashboard](https://console.openmail.sh).
+Get your API key from the [Dashboard](https://console.openmail.sh). Or pass it once to `openmail init --api-key om_xxx`, which saves it to `~/.openmail-cli/state.json` so later commands need no env var.
 
 ## Usage
 
@@ -123,9 +123,8 @@ openmail policy audit [--direction inbound|outbound] [--since <iso>] [--until <i
 
 - **OpenClaw**: use the [`@openmail/openclaw` plugin](https://github.com/openmailsh/openclaw-plugin):
   `openclaw plugins install clawhub:@openmail/openclaw`
-- **Claude Code, Cursor, Codex**: copy [`skills/openmail/SKILL.md`](skills/openmail/SKILL.md)
-  into `~/.claude/skills/openmail/` (or your agent's skills directory), or run
-  `npx skills add openmailsh/cli`.
+- **Claude Code, Cursor, Codex**: install the agent skill from
+  [openmailsh/skills](https://github.com/openmailsh/skills): `npx skills add openmailsh/skills`.
 
 ## Global flags
 

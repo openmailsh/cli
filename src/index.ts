@@ -115,6 +115,7 @@ async function main() {
     output = await runInitCommand({
       client,
       parsed,
+      apiKey,
       statePath: globalConfig.statePath,
       ctx,
     });
