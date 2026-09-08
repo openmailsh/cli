@@ -3,12 +3,8 @@ import path from "node:path";
 
 export type CliState = {
   savedApiKey?: string;
-  lastEventId?: string;
   defaultInboxId?: string;
   defaultInboxAddress?: string;
-  defaultUsageMode?: "tool" | "notify" | "channel";
-  /** @deprecated Migrated to defaultUsageMode */
-  defaultSetupMode?: "websocket" | "webhook";
   /** ISO timestamp of the last npm registry version check. */
   lastUpdateCheckAt?: string;
   /** Latest published version seen at that check. */
@@ -28,12 +24,4 @@ export async function readCliState(statePath: string): Promise<CliState> {
 export async function writeCliState(statePath: string, state: CliState): Promise<void> {
   await fs.mkdir(path.dirname(statePath), { recursive: true });
   await fs.writeFile(statePath, JSON.stringify(state, null, 2), "utf8");
-}
-
-export async function readBridgeState(statePath: string): Promise<CliState> {
-  return readCliState(statePath);
-}
-
-export async function writeBridgeState(statePath: string, state: CliState): Promise<void> {
-  return writeCliState(statePath, state);
 }

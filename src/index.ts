@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { getBooleanFlag, parseArgs } from "./lib/args";
+import { parseArgs } from "./lib/args";
 import { version } from "../package.json";
 import { runInboxCommand } from "./commands/inbox";
 import { runPodCommand } from "./commands/pod";
@@ -11,24 +11,20 @@ import { runMessagesCommand } from "./commands/messages";
 import { runThreadsCommand } from "./commands/threads";
 import { runSendCommand } from "./commands/send";
 import { runInitCommand } from "./commands/init";
-import {
-  BridgeConfigError,
-  ctxFromConfig,
-  resolveBridgeConfig,
-  resolveGlobalConfig,
-} from "./lib/config";
+import { ctxFromConfig, resolveGlobalConfig } from "./lib/config";
 import { readCliState } from "./lib/state";
 import { ApiError, OpenMailHttpClient } from "./lib/http";
-import { colorize, printData, logError, logInfo } from "./lib/output";
-import { runWsBridge } from "./lib/ws-bridge";
-import { runDoctor } from "./lib/doctor";
+import { printData, logError } from "./lib/output";
 import { resolveInboxIdWithFallback } from "./lib/inbox-default";
-import { runOpenClawCommand, refreshSkillFiles } from "./commands/openclaw";
-import { resolveApiKeyForSetup } from "./lib/setup-auth";
-import { runStatusCommand } from "./commands/status";
 import { runFeedbackCommand } from "./commands/feedback";
 import { runUpdateCommand } from "./commands/update";
 import { notifyIfUpdateAvailable } from "./lib/update-check";
+import {
+  REMOVED_OPENCLAW_COMMANDS,
+  findLegacyBridgeService,
+  legacyBridgeNotice,
+  removedCommandMessage,
+} from "./lib/legacy-openclaw";
 
 async function main() {
   const parsed = parseArgs(process.argv.slice(2));
@@ -36,6 +32,11 @@ async function main() {
   const ctx = ctxFromConfig(globalConfig);
 
   const command = parsed.command[0];
+  if (REMOVED_OPENCLAW_COMMANDS.has(command)) {
+    logError(ctx, removedCommandMessage(command), { removedIn: "0.7.0", replacement: "@openmail/openclaw" });
+    process.exitCode = 1;
+    return;
+  }
   if (
     command === "version" ||
     command === "-v" ||
@@ -60,149 +61,57 @@ async function main() {
     return;
   }
 
-  if (command === "ws" && parsed.command[1] === "bridge") {
-    const apiKey =
-      globalConfig.apiKey ??
-      (await readCliState(globalConfig.statePath)).savedApiKey;
-    if (!apiKey) {
-      logError(ctx, "missing API key (set --api-key or OPENMAIL_API_KEY)");
-      process.exit(0);
-    }
-    let bridge;
-    try {
-      bridge = resolveBridgeConfig(parsed, globalConfig.statePath);
-    } catch (err) {
-      if (err instanceof BridgeConfigError) {
-        logError(ctx, err.message);
-        process.exit(0);
-      }
-      throw err;
-    }
-    await runWsBridge(ctx, {
-      baseUrl: globalConfig.baseUrl,
-      apiKey,
-      hookUrl: bridge.hookUrl,
-      hookToken: bridge.hookToken,
-      statePath: bridge.statePath,
-      inboxIds: bridge.inboxIds,
-      eventTypes: bridge.eventTypes,
-    });
-    return;
-  }
-
   if (command === "update" || command === "upgrade") {
     const output = await runUpdateCommand({
       ctx,
       currentVersion: version,
     });
+    const legacyBridge = findLegacyBridgeService();
     if (ctx.output === "human") {
       if (output.status === "up_to_date") {
         process.stdout.write(`Already up to date (${output.to}).\n`);
       } else {
-        const extras = [
-          output.skillRefresh === "done" ? "Skill files refreshed." : "",
-          output.bridge === "restarted" ? "Notification bridge restarted." : "",
-        ]
-          .filter(Boolean)
-          .join(" ");
-        process.stdout.write(
-          `Updated to ${output.to}.${extras ? ` ${extras}` : ""}\n`,
-        );
+        process.stdout.write(`Updated to ${output.to}.\n`);
       }
+      if (legacyBridge) process.stderr.write(`\n${legacyBridgeNotice(legacyBridge)}\n`);
       return;
     }
-    printData(ctx, output);
+    printData(ctx, { ...output, ...(legacyBridge ? { legacyBridgeService: legacyBridge } : {}) });
     return;
   }
 
-  if (command === "doctor") {
-    await runDoctor(ctx, {
-      baseUrl: globalConfig.baseUrl,
-      apiKey: globalConfig.apiKey,
-      hookUrl: process.env.OPENCLAW_HOOK_URL,
-      hookToken: process.env.OPENCLAW_HOOK_TOKEN,
-    });
-    return;
+  // Reject unknown commands before the API key gate so removed names
+  // (setup, status, doctor, ws, …) surface as "unknown command" instead of
+  // implying they still exist and merely need a key.
+  const knownCommands = new Set([
+    "init",
+    "inbox",
+    "pod",
+    "domain",
+    "policy",
+    "attachments",
+    "send",
+    "messages",
+    "threads",
+    "feedback",
+  ]);
+  if (!knownCommands.has(command)) {
+    throw new Error(`unknown command: ${command}`);
   }
-  if (command === "status") {
-    const output = await runStatusCommand({
-      parsed,
-      ctx,
-      baseUrl: globalConfig.baseUrl,
-      apiKey: globalConfig.apiKey,
-      statePath: globalConfig.statePath,
-      clientFactory(apiKey) {
-        return new OpenMailHttpClient({
-          baseUrl: globalConfig.baseUrl,
-          apiKey,
-        });
-      },
-    });
-    if (ctx.output === "human") {
-      printStatusSummary(ctx, output);
-      return;
-    }
-    printData(ctx, output);
-    return;
+
+  const apiKey =
+    globalConfig.apiKey ??
+    (await readCliState(globalConfig.statePath)).savedApiKey;
+  if (!apiKey) {
+    throw new Error("missing API key (set --api-key or OPENMAIL_API_KEY)");
   }
+  const client = new OpenMailHttpClient({
+    baseUrl: globalConfig.baseUrl,
+    apiKey,
+  });
 
   let output: unknown;
-  if (command === "setup" && getBooleanFlag(parsed.flags, "refresh-skill")) {
-    // Prompt-free, network-free: rewrites already-installed skill files from
-    // this binary's embedded template. Needs no API key.
-    const result = await refreshSkillFiles();
-    if (ctx.output === "human") {
-      process.stdout.write(
-        result.status === "refreshed"
-          ? `Skill files refreshed (${result.refreshed.length}).\n`
-          : result.status === "unchanged"
-            ? "Skill files already up to date.\n"
-            : "No installed skill files found — run `openmail setup` first.\n",
-      );
-      return;
-    }
-    printData(ctx, result);
-    return;
-  }
-  if (command === "setup") {
-    const reset = getBooleanFlag(parsed.flags, "reset");
-    if (reset) {
-      output = await runOpenClawCommand({
-        parsed: { ...parsed, command: ["openclaw", "setup", ...parsed.command.slice(1)] },
-        statePath: globalConfig.statePath,
-        ctx,
-      });
-    } else {
-      const apiKey = await resolveApiKeyForSetup({
-        ctx,
-        baseUrl: globalConfig.baseUrl,
-        statePath: globalConfig.statePath,
-        initialApiKey: globalConfig.apiKey,
-      });
-      const client = new OpenMailHttpClient({
-        baseUrl: globalConfig.baseUrl,
-        apiKey,
-      });
-      output = await runOpenClawCommand({
-        client,
-        parsed: { ...parsed, command: ["openclaw", "setup", ...parsed.command.slice(1)] },
-        statePath: globalConfig.statePath,
-        ctx,
-        apiKey,
-      });
-    }
-  } else {
-    const apiKey =
-      globalConfig.apiKey ??
-      (await readCliState(globalConfig.statePath)).savedApiKey;
-    if (!apiKey) {
-      throw new Error("missing API key (set --api-key or OPENMAIL_API_KEY)");
-    }
-    const client = new OpenMailHttpClient({
-      baseUrl: globalConfig.baseUrl,
-      apiKey,
-    });
-    if (command === "init") {
+  if (command === "init") {
     output = await runInitCommand({
       client,
       parsed,
@@ -249,33 +158,10 @@ async function main() {
     output = await runThreadsCommand(client, parsed, inboxId);
   } else if (command === "feedback") {
     output = await runFeedbackCommand(client, parsed);
-  } else if (command === "openclaw") {
-    logInfo(
-      ctx,
-      "Deprecated: use `openmail setup` (alias kept for compatibility).",
-    );
-    output = await runOpenClawCommand({
-      client,
-      parsed,
-      statePath: globalConfig.statePath,
-      ctx,
-      apiKey,
-    });
   } else {
     throw new Error(`unknown command: ${command}`);
   }
-  }
 
-  if (
-    ctx.output === "human" &&
-    output &&
-    typeof output === "object" &&
-    "ok" in output &&
-    command === "setup"
-  ) {
-    printSetupSuccess(ctx, output as SetupResult);
-    return;
-  }
   printData(ctx, output);
 
   // After the command's own output: a one-line nudge when a newer CLI is
@@ -320,8 +206,6 @@ function printHelp(topic?: string) {
         "  openmail help <command>",
         "",
         "Commands:",
-        "  setup      OpenClaw setup (current default integration)",
-        "  status     Show current OpenMail/OpenClaw runtime status",
         "  init       Create a new inbox and set as default",
         "  inbox      Manage inboxes, inbox API keys, and webhooks",
         "  pod        Manage pods and pod API keys",
@@ -332,10 +216,7 @@ function printHelp(topic?: string) {
         "  threads    List/get threads",
         "  attachments  Download or extract text from an attachment",
         "  feedback   Report a bug, friction, or feature request to the OpenMail team",
-        "  openclaw   OpenClaw setup helpers",
-        "  ws         WebSocket utilities (bridge)",
-        "  doctor     Run connectivity/config diagnostics",
-        "  update     Update the CLI to the latest version and refresh skill files",
+        "  update     Update the CLI to the latest version",
         "",
         ...globalFlags,
       ].join("\n"),
@@ -352,57 +233,6 @@ function printHelp(topic?: string) {
         "  init [--mailbox-name <name>] [--display-name <sender name>]",
         "",
         "Creates a new inbox and sets it as the default. Prompts interactively for mailbox name and display name when run without flags.",
-        "",
-        ...globalFlags,
-      ].join("\n"),
-    );
-    return;
-  }
-
-  if (usage === "setup") {
-    process.stdout.write(
-      [
-        "openmail setup",
-        "",
-        "Usage:",
-        "  setup [--agent openclaw|claude-code]",
-        "  setup [--mode tool|notify|channel]",
-        "  setup [--openclaw-home <path>] [--hook-path </hooks/openmail>] [--hooks-token <token>] [--with-systemd] [--reconfigure]",
-        "  setup [--inbox-id <id>] [--mailbox-name <name>] [--display-name <sender>]",
-        "  setup --refresh-skill",
-        "  setup --reset [--force]",
-        "",
-        "Agents:",
-        "  openclaw    OpenClaw integration — skill + env + WebSocket bridge (default)",
-        "  claude-code Claude Code integration — skill to ~/.claude/skills/, env to ~/.claude/openmail.env",
-        "",
-        "Modes (openclaw only):",
-        "  tool       Agent sends/reads email on demand (default)",
-        "  notify     Real-time alerts when new email arrives (WebSocket bridge)",
-        "  channel    Inbound emails trigger the agent directly (WebSocket bridge)",
-        "",
-        "Runs idempotent setup. Prompts for inbox and mode selection.",
-        "A WebSocket bridge (systemd/launchd) is auto-configured for notify and channel modes.",
-        "--reconfigure re-prompts for interactive choices.",
-        "--refresh-skill only rewrites already-installed skill files from this",
-        "version's template — no prompts, no API calls, no config changes.",
-        "--reset removes OpenMail setup files (requires double confirmation unless --force).",
-        "",
-        ...globalFlags,
-      ].join("\n"),
-    );
-    return;
-  }
-
-  if (usage === "status") {
-    process.stdout.write(
-      [
-        "openmail status",
-        "",
-        "Usage:",
-        "  status [--openclaw-home <path>]",
-        "",
-        "Shows live status for API/auth, setup files, and bridge runtime.",
         "",
         ...globalFlags,
       ].join("\n"),
@@ -651,41 +481,6 @@ function printHelp(topic?: string) {
     return;
   }
 
-  if (usage === "openclaw") {
-    process.stdout.write(
-      [
-        "openmail openclaw (deprecated — use `openmail setup`)",
-        "",
-        "Subcommands:",
-        "  setup [--mode tool|notify|channel]",
-        "        [--openclaw-home <path>] [--hook-path </hooks/openmail>] [--hooks-token <token>] [--with-systemd]",
-        "",
-        "Creates OpenClaw skill + env files and optionally a WebSocket bridge service.",
-        "",
-        ...globalFlags,
-      ].join("\n"),
-    );
-    return;
-  }
-
-  if (usage === "ws" || usage === "bridge") {
-    process.stdout.write(
-      [
-        "openmail ws bridge",
-        "",
-        "Usage:",
-        "  ws bridge [--hook-url <url>] [--hook-token <token>]",
-        "            [--inbox-ids <a,b>] [--event-types <a,b>] [--state-path <path>]",
-        "",
-        "Environment:",
-        "  OPENMAIL_API_KEY, OPENCLAW_HOOK_URL, OPENCLAW_HOOK_TOKEN",
-        "",
-        ...globalFlags,
-      ].join("\n"),
-    );
-    return;
-  }
-
   if (usage === "update" || usage === "upgrade") {
     process.stdout.write(
       [
@@ -695,29 +490,10 @@ function printHelp(topic?: string) {
         "  update",
         "",
         "Updates the globally installed @openmail/cli to the latest published",
-        "version (npm install -g), refreshes installed skill files via",
-        "`setup --refresh-skill` (no prompts, no API calls, no config changes),",
-        "and restarts the notification bridge service if one is running so it",
-        "picks up the new code. `upgrade` is an alias.",
+        "version (npm install -g). `upgrade` is an alias.",
         "",
         "A one-line notice is printed after any command when a newer version",
         "is available (checked against the npm registry at most once per day).",
-        "",
-        ...globalFlags,
-      ].join("\n"),
-    );
-    return;
-  }
-
-  if (usage === "doctor") {
-    process.stdout.write(
-      [
-        "openmail doctor",
-        "",
-        "Usage:",
-        "  doctor",
-        "",
-        "Checks OpenMail health/auth and validates bridge config.",
         "",
         ...globalFlags,
       ].join("\n"),
@@ -738,138 +514,4 @@ function getAsciiLogo(): string[] {
     "╚██████╔╝██║     ███████╗██║ ╚████║██║ ╚═╝ ██║██║  ██║██║███████╗",
     " ╚═════╝ ╚═╝     ╚══════╝╚═╝  ╚═══╝╚═╝     ╚═╝╚═╝  ╚═╝╚═╝╚══════╝",
   ];
-}
-
-type SetupResult = {
-  ok: boolean;
-  status?: "configured" | "already_configured" | "reset_done";
-  changedFiles?: string[];
-  removedFiles?: string[];
-  openclawHome: string;
-  inbox?: { id: string | null; address: string | null };
-  files?: { skill: string; env: string; systemd: string | null };
-  next?: {
-    usageMode: "tool" | "notify" | "channel";
-    runBridge?: string;
-    reminder?: string;
-    bridgeStatus?: "systemd" | "launchd" | "process" | "manual" | "none";
-    bridgePid?: number;
-    persistHint?: string;
-  };
-};
-
-function printSetupSuccess(ctx: ReturnType<typeof ctxFromConfig>, data: SetupResult) {
-  const titleText =
-    data.status === "reset_done"
-      ? "✓ Setup reset complete"
-      : data.status === "already_configured"
-        ? "✓ Already configured"
-        : "✓ Setup complete";
-  const title = colorize(ctx, "green", titleText);
-  const label = (text: string) => colorize(ctx, "cyan", text);
-  process.stdout.write(`${title}\n\n`);
-  if (data.status === "reset_done") {
-    process.stdout.write(`${label("Removed files:")} ${data.removedFiles?.length ?? 0}\n`);
-    if (data.next?.reminder) {
-      process.stdout.write(`${label("Reminder:")} ${data.next.reminder}\n`);
-    }
-    return;
-  }
-
-  const usageMode = data.next?.usageMode ?? "tool";
-  const usageModeLabel =
-    usageMode === "tool"
-      ? "Tool (on demand)"
-      : usageMode === "notify"
-        ? "Tool + Notifications"
-        : "Full Channel";
-
-  const bridgeStatus = data.next?.bridgeStatus ?? "none";
-  const bridgeStatusText =
-    bridgeStatus === "none"
-      ? "not needed (tool mode)"
-      : bridgeStatus === "systemd"
-        ? "managed by systemd (WebSocket)"
-        : bridgeStatus === "launchd"
-          ? "managed by launchd (WebSocket)"
-          : bridgeStatus === "process"
-            ? `running (pid ${data.next?.bridgePid ?? "?"})`
-            : "not running (manual start required)";
-
-  process.stdout.write(`${label("Mode:")} ${usageModeLabel}\n`);
-  if (data.inbox?.address) {
-    process.stdout.write(`${label("Inbox:")} ${data.inbox.address}\n`);
-  }
-  if (bridgeStatus !== "none") {
-    process.stdout.write(`${label("Bridge:")} ${bridgeStatusText}\n`);
-  }
-  if (ctx.verbose) {
-    process.stdout.write(`${label("Updated files:")} ${data.changedFiles?.length ?? 0}\n`);
-  }
-
-  if (bridgeStatus === "process") {
-    process.stdout.write(`\n${label("Note:")} Bridge started but will not survive a reboot.\n`);
-    if (data.next?.persistHint) {
-      process.stdout.write(`${label("Make permanent:")} ${data.next.persistHint}\n`);
-    }
-    process.stdout.write(`${label("Log:")} /tmp/openmail-bridge.log\n`);
-    process.stdout.write(`${label("Tip:")} Run 'openmail status' anytime\n`);
-  } else if (bridgeStatus === "manual" && data.next?.runBridge) {
-    process.stdout.write("\n");
-    process.stdout.write(`${label("Run:")}\n  ${data.next.runBridge}\n`);
-    process.stdout.write(`\n${label("Tip:")} Run 'openmail status' anytime\n`);
-  } else {
-    process.stdout.write(`\n${label("Tip:")} Run 'openmail status' anytime\n`);
-  }
-}
-
-function printStatusSummary(
-  ctx: ReturnType<typeof ctxFromConfig>,
-  data: Awaited<ReturnType<typeof runStatusCommand>>,
-) {
-  const label = (text: string) => colorize(ctx, "cyan", text);
-  const ok = (text: string) => colorize(ctx, "green", text);
-  const warn = (text: string) => colorize(ctx, "yellow", text);
-  const bad = (text: string) => colorize(ctx, "red", text);
-
-  process.stdout.write(`${ok("✓ OpenMail status")}\n\n`);
-  process.stdout.write(
-    `${label("API:")} ${data.api.health === "ok" ? ok("reachable") : bad("unreachable")} (${data.api.baseUrl})\n`,
-  );
-  process.stdout.write(
-    `${label("Auth:")} ${
-      data.api.auth === "ok"
-        ? ok("valid")
-        : data.api.auth === "skipped"
-          ? warn("not checked (no API key)")
-          : bad("invalid")
-    } [source: ${data.api.apiKeySource}]\n`,
-  );
-  const usageModeLabel =
-    data.setup.usageMode === "tool"
-      ? "Tool (on demand)"
-      : data.setup.usageMode === "notify"
-        ? "Tool + Notifications"
-        : data.setup.usageMode === "channel"
-          ? "Full Channel"
-          : "unknown";
-  process.stdout.write(`${label("Mode:")} ${usageModeLabel}\n`);
-  process.stdout.write(
-    `${label("Setup files:")} env=${data.setup.files.env ? "yes" : "no"}, skill=${data.setup.files.skill ? "yes" : "no"}, systemd=${data.setup.files.systemdUnit ? "yes" : "no"}\n`,
-  );
-  process.stdout.write(
-    `${label("Bridge:")} ${
-      data.bridge.status === "active"
-        ? ok("active")
-        : data.bridge.status === "activating"
-          ? warn("activating")
-          : data.bridge.status === "deactivating"
-            ? warn("deactivating")
-        : data.bridge.status === "inactive"
-          ? warn("inactive")
-          : data.bridge.status === "failed"
-            ? bad("failed")
-            : warn(data.bridge.status)
-    } (${data.bridge.type})\n`,
-  );
 }

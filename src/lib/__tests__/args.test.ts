@@ -31,7 +31,7 @@ describe("parseArgs", () => {
   });
 
   it("returns typed flag accessors", () => {
-    const parsed = parseArgs(["doctor", "--json", "--limit", "20", "--base-url", "https://x"]);
+    const parsed = parseArgs(["inbox", "--json", "--limit", "20", "--base-url", "https://x"]);
     expect(getBooleanFlag(parsed.flags, "json")).toBe(true);
     expect(getNumberFlag(parsed.flags, "limit")).toBe(20);
     expect(getStringFlag(parsed.flags, "base-url")).toBe("https://x");

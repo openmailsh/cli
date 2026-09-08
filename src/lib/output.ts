@@ -9,13 +9,6 @@ export function supportsAnsi(ctx: CliContext): boolean {
   return ctx.output === "human" && Boolean(process.stdout.isTTY);
 }
 
-export function clearScreen(ctx: CliContext) {
-  if (!supportsAnsi(ctx)) {
-    return;
-  }
-  process.stdout.write("\x1b[2J\x1b[H");
-}
-
 export function colorize(
   ctx: CliContext,
   color: "green" | "yellow" | "cyan" | "red" | "gray",

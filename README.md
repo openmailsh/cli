@@ -28,16 +28,13 @@ openmail help <command>
 ### Get started
 
 ```bash
-# One-command setup (OpenClaw integration: skill, env files, systemd on Linux by default)
-openmail setup [--mode websocket|webhook]
+# Create a new inbox and set it as the default (interactive prompts, or pass flags)
+openmail init [--mailbox-name john] [--display-name "John Smith"]
 ```
 
 ### Core commands
 
 ```bash
-# Create a new inbox (interactive prompts, or pass flags)
-openmail init [--mailbox-name john] [--display-name "John Smith"]
-
 # Manage inboxes
 openmail inbox list [--pod-id pod_xxx] --limit 10
 openmail inbox create [--mailbox-name <name>] [--display-name <sender name>] [--domain <domain>] [--pod-id <pod_id>]
@@ -57,7 +54,7 @@ openmail inbox webhook test --inbox-id inb_xxx
 openmail inbox webhook rotate-secret --inbox-id inb_xxx
 openmail inbox webhook clear --inbox-id inb_xxx
 
-# Send email (uses default inbox from setup/init, or pass --inbox-id)
+# Send email (uses default inbox from init, or pass --inbox-id)
 openmail send --to hello@example.com --subject "Hi" --body "Hello"
 
 # Send to multiple recipients (--to is one address; repeat --cc for the rest)
@@ -122,21 +119,13 @@ openmail policy rules remove --rule-id rule_xxx [--pod-id | --inbox-id]
 openmail policy audit [--direction inbound|outbound] [--since <iso>] [--until <iso>]
 ```
 
-### OpenClaw integration
+### Use with an agent
 
-```bash
-# Runtime status
-openmail status
-
-# WebSocket bridge (forwards events to OpenClaw hook)
-openmail ws bridge [--hook-url <url>] [--hook-token <token>]
-```
-
-### Diagnostics
-
-```bash
-openmail doctor
-```
+- **OpenClaw**: use the [`@openmail/openclaw` plugin](https://github.com/openmailsh/openclaw-plugin):
+  `openclaw plugins install clawhub:@openmail/openclaw`
+- **Claude Code, Cursor, Codex**: copy [`skills/openmail/SKILL.md`](skills/openmail/SKILL.md)
+  into `~/.claude/skills/openmail/` (or your agent's skills directory), or run
+  `npx skills add openmailsh/cli`.
 
 ## Global flags
 

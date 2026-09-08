@@ -6,7 +6,17 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Thi
 
 ---
 
-## [0.1.6] — current
+## [0.7.0]
+
+### Removed
+
+- `openmail setup`, `openmail openclaw`, `openmail status`, `openmail doctor` and the `ws bridge` WebSocket bridge — the OpenClaw integration now lives in [`@openmail/openclaw`](https://github.com/openmailsh/openclaw-plugin) (`openclaw plugins install clawhub:@openmail/openclaw`). `openmail update` no longer refreshes skill files or restarts a bridge service. The removed commands still print a pointer to the plugin and exit 1, and `openmail update` warns if the old bridge service (launchd plist / systemd unit) is still installed.
+
+### Added
+
+- `skills/openmail/SKILL.md` — agent-facing skill for using the CLI directly (Claude Code, Cursor, Codex).
+
+## [0.1.6]
 
 Initial public release on [openmailsh/cli](https://github.com/openmailsh/cli).
 
