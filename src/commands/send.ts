@@ -59,7 +59,9 @@ export async function runSendCommand(
     );
   }
   if (!to) throw new Error("missing --to");
-  if (!subject) throw new Error("missing --subject");
+  // The API derives "Re: <thread subject>" for in-thread replies, so only a
+  // fresh thread needs a subject.
+  if (!subject && !threadId) throw new Error("missing --subject (or pass --thread-id to reply)");
   if (!body) throw new Error("missing --body");
 
   let attachments: { path: string; filename: string; contentType: string }[] | undefined;

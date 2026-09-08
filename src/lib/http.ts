@@ -86,7 +86,7 @@ export class OpenMailHttpClient {
     inboxId: string;
     to: string;
     cc?: string[];
-    subject: string;
+    subject?: string;
     body: string;
     bodyHtml?: string;
     threadId?: string;
@@ -102,7 +102,7 @@ export class OpenMailHttpClient {
       const { readFile } = await import("node:fs/promises");
       const formData = new FormData();
       formData.append("to", params.to);
-      formData.append("subject", params.subject);
+      if (params.subject) formData.append("subject", params.subject);
       formData.append("body", params.body);
       if (params.bodyHtml) formData.append("bodyHtml", params.bodyHtml);
       if (params.threadId) formData.append("threadId", params.threadId);
@@ -129,9 +129,9 @@ export class OpenMailHttpClient {
 
     const payload: Record<string, string | boolean | string[]> = {
       to: params.to,
-      subject: params.subject,
       body: params.body,
     };
+    if (params.subject) payload.subject = params.subject;
     if (params.cc?.length) payload.cc = params.cc;
     if (params.bodyHtml) payload.bodyHtml = params.bodyHtml;
     if (params.threadId) payload.threadId = params.threadId;

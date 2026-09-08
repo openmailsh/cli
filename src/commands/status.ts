@@ -26,7 +26,7 @@ export type StatusResult = {
     };
   };
   bridge: {
-    type: "systemd" | "manual_or_unknown";
+    type: "systemd" | "launchd" | "manual_or_unknown";
     status:
       | "active"
       | "activating"
@@ -62,6 +62,12 @@ export async function runStatusCommand(params: {
     "user",
     "openmail-openclaw-bridge.service",
   );
+  const launchdPlistPath = path.join(
+    os.homedir(),
+    "Library",
+    "LaunchAgents",
+    "sh.openmail.openclaw-bridge.plist",
+  );
 
   const apiKey = params.apiKey ?? state.savedApiKey;
   const apiKeySource: StatusResult["api"]["apiKeySource"] = params.apiKey
@@ -73,13 +79,15 @@ export async function runStatusCommand(params: {
   const health = await probeHealth(params.baseUrl);
   const auth = apiKey ? await probeAuth(params.clientFactory(apiKey)) : "skipped";
 
-  const [envExists, skillExists, systemdUnitExists] = await Promise.all([
-    fileExists(envPath),
-    fileExists(skillPath),
-    fileExists(systemdUnitPath),
-  ]);
+  const [envExists, skillExists, systemdUnitExists, launchdPlistExists] =
+    await Promise.all([
+      fileExists(envPath),
+      fileExists(skillPath),
+      fileExists(systemdUnitPath),
+      fileExists(launchdPlistPath),
+    ]);
 
-  const bridge = checkBridgeStatus(systemdUnitExists);
+  const bridge = checkBridgeStatus(systemdUnitExists, launchdPlistExists);
 
   return {
     ok: true,
@@ -122,7 +130,11 @@ async function probeAuth(client: OpenMailHttpClient): Promise<"ok" | "error"> {
 
 function checkBridgeStatus(
   systemdUnitExists: boolean,
+  launchdPlistExists: boolean,
 ): StatusResult["bridge"] {
+  if (process.platform === "darwin" && launchdPlistExists) {
+    return checkLaunchdBridgeStatus();
+  }
   if (!systemdUnitExists) {
     return {
       type: "manual_or_unknown",
@@ -161,6 +173,35 @@ function checkBridgeStatus(
     return { type: "systemd", status: "not_found" };
   }
   return { type: "systemd", status: "unknown" };
+}
+
+// `launchctl print` is the only stable way to read a LaunchAgent's state:
+// "state = running" plus a pid when the bridge is up; with KeepAlive a
+// crash-looping bridge shows "state = not running" and a non-zero
+// "last exit code" between restarts, which we report as failed.
+function checkLaunchdBridgeStatus(): StatusResult["bridge"] {
+  const uid = typeof process.getuid === "function" ? process.getuid() : 501;
+  const print = spawnSync(
+    "launchctl",
+    ["print", `gui/${uid}/sh.openmail.openclaw-bridge`],
+    { encoding: "utf8" },
+  );
+  if (print.status !== 0) {
+    return { type: "launchd", status: "not_found" };
+  }
+  const out = print.stdout ?? "";
+  const state = /^\s*state = (.+)$/m.exec(out)?.[1]?.trim();
+  if (state === "running") {
+    return { type: "launchd", status: "active" };
+  }
+  const lastExit = /^\s*last exit code = (.+)$/m.exec(out)?.[1]?.trim();
+  if (lastExit && lastExit !== "0" && lastExit !== "(never exited)") {
+    return { type: "launchd", status: "failed" };
+  }
+  if (state === "not running" || state === "waiting") {
+    return { type: "launchd", status: "inactive" };
+  }
+  return { type: "launchd", status: "unknown" };
 }
 
 async function fileExists(targetPath: string): Promise<boolean> {
