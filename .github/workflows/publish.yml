@@ -18,7 +18,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-          registry-url: https://registry.npmjs.org
+          # No registry-url: setup-node would write _authToken + a dummy
+          # NODE_AUTH_TOKEN, which blocks npm trusted publishing (OIDC).
           cache: npm
 
       # Trusted publishing (OIDC) needs npm >= 11.5; Node 22 ships 10.x.
