@@ -10,7 +10,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Thi
 
 ### Removed
 
-- `openmail setup`, `openmail openclaw`, `openmail status`, `openmail doctor` and the `ws bridge` WebSocket bridge — the OpenClaw integration now lives in [`@openmail/openclaw`](https://github.com/openmailsh/openclaw-plugin) (`openclaw plugins install clawhub:@openmail/openclaw`). `openmail update` no longer refreshes skill files or restarts a bridge service.
+- `openmail setup`, `openmail openclaw`, `openmail status`, `openmail doctor` and the `ws bridge` WebSocket bridge — the OpenClaw integration now lives in [`@openmail/openclaw`](https://github.com/openmailsh/openclaw-plugin) (`openclaw plugins install clawhub:@openmail/openclaw`). `openmail update` no longer refreshes skill files or restarts a bridge service. The removed commands still print a pointer to the plugin and exit 1, and `openmail update` warns if the old bridge service (launchd plist / systemd unit) is still installed.
 
 ### Added
 

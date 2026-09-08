@@ -19,6 +19,12 @@ import { resolveInboxIdWithFallback } from "./lib/inbox-default";
 import { runFeedbackCommand } from "./commands/feedback";
 import { runUpdateCommand } from "./commands/update";
 import { notifyIfUpdateAvailable } from "./lib/update-check";
+import {
+  REMOVED_OPENCLAW_COMMANDS,
+  findLegacyBridgeService,
+  legacyBridgeNotice,
+  removedCommandMessage,
+} from "./lib/legacy-openclaw";
 
 async function main() {
   const parsed = parseArgs(process.argv.slice(2));
@@ -26,6 +32,11 @@ async function main() {
   const ctx = ctxFromConfig(globalConfig);
 
   const command = parsed.command[0];
+  if (REMOVED_OPENCLAW_COMMANDS.has(command)) {
+    logError(ctx, removedCommandMessage(command), { removedIn: "0.7.0", replacement: "@openmail/openclaw" });
+    process.exitCode = 1;
+    return;
+  }
   if (
     command === "version" ||
     command === "-v" ||
@@ -55,15 +66,17 @@ async function main() {
       ctx,
       currentVersion: version,
     });
+    const legacyBridge = findLegacyBridgeService();
     if (ctx.output === "human") {
       if (output.status === "up_to_date") {
         process.stdout.write(`Already up to date (${output.to}).\n`);
       } else {
         process.stdout.write(`Updated to ${output.to}.\n`);
       }
+      if (legacyBridge) process.stderr.write(`\n${legacyBridgeNotice(legacyBridge)}\n`);
       return;
     }
-    printData(ctx, output);
+    printData(ctx, { ...output, ...(legacyBridge ? { legacyBridgeService: legacyBridge } : {}) });
     return;
   }
 
