@@ -80,6 +80,25 @@ async function main() {
     return;
   }
 
+  // Reject unknown commands before the API key gate so removed names
+  // (setup, status, doctor, ws, …) surface as "unknown command" instead of
+  // implying they still exist and merely need a key.
+  const knownCommands = new Set([
+    "init",
+    "inbox",
+    "pod",
+    "domain",
+    "policy",
+    "attachments",
+    "send",
+    "messages",
+    "threads",
+    "feedback",
+  ]);
+  if (!knownCommands.has(command)) {
+    throw new Error(`unknown command: ${command}`);
+  }
+
   const apiKey =
     globalConfig.apiKey ??
     (await readCliState(globalConfig.statePath)).savedApiKey;
