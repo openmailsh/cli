@@ -6,6 +6,12 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Thi
 
 ---
 
+## [0.7.1]
+
+### Removed
+
+- The bundled `skills/openmail/SKILL.md`. The agent skill lives in [openmailsh/skills](https://github.com/openmailsh/skills) (`npx skills add openmailsh/skills`).
+
 ## [0.7.0]
 
 ### Removed

@@ -123,9 +123,8 @@ openmail policy audit [--direction inbound|outbound] [--since <iso>] [--until <i
 
 - **OpenClaw**: use the [`@openmail/openclaw` plugin](https://github.com/openmailsh/openclaw-plugin):
   `openclaw plugins install clawhub:@openmail/openclaw`
-- **Claude Code, Cursor, Codex**: copy [`skills/openmail/SKILL.md`](skills/openmail/SKILL.md)
-  into `~/.claude/skills/openmail/` (or your agent's skills directory), or run
-  `npx skills add openmailsh/cli`.
+- **Claude Code, Cursor, Codex**: install the agent skill from
+  [openmailsh/skills](https://github.com/openmailsh/skills): `npx skills add openmailsh/skills`.
 
 ## Global flags
 

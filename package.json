@@ -1,6 +1,6 @@
 {
   "name": "@openmail/cli",
-  "version": "0.7.0",
+  "version": "0.7.1",
   "description": "OpenMail CLI",
   "license": "MIT",
   "main": "dist/index.js",
@@ -10,7 +10,6 @@
   },
   "files": [
     "dist",
-    "skills",
     "README.md"
   ],
   "engines": {
