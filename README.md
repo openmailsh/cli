@@ -123,6 +123,8 @@ openmail policy audit [--direction inbound|outbound] [--since <iso>] [--until <i
 
 - **OpenClaw**: use the [`@openmail/openclaw` plugin](https://github.com/openmailsh/openclaw-plugin):
   `openclaw plugins install clawhub:@openmail/openclaw`
+- **Hermes**: use the [`hermes-plugin`](https://github.com/openmailsh/hermes-plugin):
+  `hermes plugins install openmailsh/hermes-plugin --enable`, then `hermes openmail setup`
 - **Claude Code, Cursor, Codex**: install the agent skill from
   [openmailsh/skills](https://github.com/openmailsh/skills): `npx skills add openmailsh/skills`.
 
