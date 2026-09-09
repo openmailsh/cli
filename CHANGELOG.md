@@ -6,6 +6,18 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Thi
 
 ---
 
+## [Unreleased]
+
+### Added
+
+- Proxy support. The CLI honours `HTTPS_PROXY` / `HTTP_PROXY` / `NO_PROXY` (via undici's `EnvHttpProxyAgent`), so it works inside sandboxes and CI without `NODE_USE_ENV_PROXY=1`.
+
+### Fixed
+
+- A proxy or gateway rejecting the request is no longer reported as an "OpenMail API error". Only JSON `{ error, message }` bodies get that label; anything else names the host and proxy and points at egress rules.
+- `openmail setup` now points at `openmail init` first, with the OpenClaw plugin as a secondary pointer instead of the only one.
+- `inbox --help` and the README said inbox-scoped keys "can only read and send"; they can also look up their parent pod. Wording now matches behaviour.
+
 ## [0.7.1]
 
 ### Changed

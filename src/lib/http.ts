@@ -1,4 +1,5 @@
 import crypto from "node:crypto";
+import { proxyAwareFetch, proxyFromEnv } from "./fetch";
 
 export type HttpClientConfig = {
   baseUrl: string;
@@ -13,6 +14,31 @@ export class ApiError extends Error {
     super(message);
     this.status = status;
     this.body = body;
+  }
+}
+
+/**
+ * The OpenMail API always answers errors as JSON `{ error, message }`. Anything
+ * else (plain text, HTML) came from something in between — a proxy, sandbox
+ * gateway, or captive portal — and must not be reported as an OpenMail error.
+ */
+export function describeHttpError(url: string, status: number, body: unknown): string {
+  const isApiShape =
+    typeof body === "object" && body !== null && typeof (body as { error?: unknown }).error === "string";
+  if (isApiShape) {
+    return `OpenMail API error (${status})`;
+  }
+  const host = safeHost(url);
+  const proxy = proxyFromEnv();
+  const via = proxy ? ` via proxy ${proxy}` : "";
+  return `HTTP ${status} from ${host}${via} — not an OpenMail API response; check proxy/network egress`;
+}
+
+function safeHost(url: string): string {
+  try {
+    return new URL(url).host;
+  } catch {
+    return url;
   }
 }
 
@@ -64,17 +90,15 @@ export class OpenMailHttpClient {
 
   /** GET a binary response (attachments) as raw bytes. */
   async download(path: string): Promise<{ bytes: Buffer; contentType: string | null }> {
-    const response = await fetch(`${this.baseUrl}${path}`, {
+    const url = `${this.baseUrl}${path}`;
+    const response = await proxyAwareFetch(url, {
       method: "GET",
       headers: { Authorization: `Bearer ${this.apiKey}` },
     });
     if (!response.ok) {
       const text = await response.text();
-      throw new ApiError(
-        `OpenMail API error (${response.status})`,
-        response.status,
-        tryParseJson(text) ?? text,
-      );
+      const body = tryParseJson(text) ?? text;
+      throw new ApiError(describeHttpError(url, response.status, body), response.status, body);
     }
     return {
       bytes: Buffer.from(await response.arrayBuffer()),
@@ -151,7 +175,7 @@ export class OpenMailHttpClient {
       ...(init.headers as Record<string, string> | undefined),
     };
 
-    const response = await fetch(url, {
+    const response = await proxyAwareFetch(url, {
       ...init,
       headers,
     });
@@ -164,11 +188,8 @@ export class OpenMailHttpClient {
     const parsedBody = tryParseJson(text);
 
     if (!response.ok) {
-      throw new ApiError(
-        `OpenMail API error (${response.status})`,
-        response.status,
-        parsedBody ?? text,
-      );
+      const body = parsedBody ?? text;
+      throw new ApiError(describeHttpError(url, response.status, body), response.status, body);
     }
     return parsedBody ?? text;
   }

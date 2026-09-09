@@ -15,9 +15,17 @@ describe("legacy openclaw pointers", () => {
     expect([...REMOVED_OPENCLAW_COMMANDS].sort()).toEqual(["doctor", "openclaw", "setup", "status"]);
   });
 
-  it("names the command and the plugin install", () => {
+  it("points `setup` at `openmail init` first, OpenClaw second", () => {
     const msg = removedCommandMessage("setup");
-    expect(msg).toContain("`openmail setup` is deprecated");
+    expect(msg).toContain("`openmail setup` was removed");
+    expect(msg.indexOf("openmail init")).toBeLessThan(msg.indexOf("openclaw plugins install"));
+    expect(msg).toContain("openclaw plugins install clawhub:@openmail/openclaw");
+  });
+
+  it("points the OpenClaw-only commands straight at the plugin", () => {
+    const msg = removedCommandMessage("doctor");
+    expect(msg).toContain("`openmail doctor` was removed");
+    expect(msg).not.toContain("openmail init");
     expect(msg).toContain("openclaw plugins install clawhub:@openmail/openclaw");
   });
 
