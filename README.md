@@ -18,6 +18,8 @@ export OPENMAIL_API_KEY=om_xxx
 
 Get your API key from the [Dashboard](https://console.openmail.sh). Or pass it once to `openmail init --api-key om_xxx`, which saves it to `~/.openmail-cli/state.json` so later commands need no env var.
 
+Behind a proxy (sandboxes, CI)? The CLI honours `HTTPS_PROXY` / `HTTP_PROXY` / `NO_PROXY` — no extra flags needed.
+
 ## Usage
 
 ```bash
@@ -42,7 +44,7 @@ openmail inbox get --inbox-id inb_xxx
 openmail inbox update --inbox-id inb_xxx --display-name "New name"
 openmail inbox delete --inbox-id inb_xxx
 
-# Inbox-scoped API keys: can only read and send from that one inbox.
+# Inbox-scoped API keys: confined to that one inbox (read, send, look up its pod).
 # Needs an account-wide or pod-scoped key. Token is shown once.
 openmail inbox keys create --inbox-id inb_xxx [--name <name>] --json
 openmail inbox keys list --inbox-id inb_xxx

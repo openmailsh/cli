@@ -13,8 +13,24 @@ export const PLUGIN_INSTALL = "openclaw plugins install clawhub:@openmail/opencl
 export const DOCS_URL = "https://docs.openmail.sh/integrations/openclaw";
 
 export function removedCommandMessage(command: string): string {
+  // `setup` was the generic "get me an inbox" entry point before 0.7; most
+  // people typing it just want an inbox, not OpenClaw. Lead with `init`.
+  if (command === "setup") {
+    return [
+      "`openmail setup` was removed in 0.7.0. To create an inbox, run:",
+      "",
+      "  openmail init",
+      "",
+      "Using OpenClaw? The integration is a plugin now:",
+      "",
+      `  ${PLUGIN_INSTALL}`,
+      "  openclaw channels add --channel openmail --api-key <key>",
+      "",
+      `More: ${DOCS_URL}`,
+    ].join("\n");
+  }
   return [
-    `\`openmail ${command}\` is deprecated. Use the OpenClaw plugin:`,
+    `\`openmail ${command}\` was removed in 0.7.0. Use the OpenClaw plugin:`,
     "",
     `  ${PLUGIN_INSTALL}`,
     "  openclaw channels add --channel openmail --api-key <key>",
