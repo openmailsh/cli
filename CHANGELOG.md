@@ -6,6 +6,14 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Thi
 
 ---
 
+## [Unreleased]
+
+### Added
+
+- `openmail threads delete --thread-id <id>` — moves a thread to Trash in the console; the API stops returning it.
+- `openmail messages delete --message-id <id>` — deletes a single message.
+- Both need an account-wide or pod-scoped key; inbox-scoped keys get a 403.
+
 ## [0.7.2]
 
 ### Added

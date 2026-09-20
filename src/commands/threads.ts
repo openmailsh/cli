@@ -9,7 +9,7 @@ export async function runThreadsCommand(
 ) {
   const action = parsed.command[1];
   if (!action) {
-    throw new Error("missing threads action (list|get|read|unread)");
+    throw new Error("missing threads action (list|get|read|unread|delete)");
   }
 
   if (action === "list") {
@@ -41,6 +41,14 @@ export async function runThreadsCommand(
     const threadId = getStringFlag(parsed.flags, "thread-id");
     if (!threadId) throw new Error("missing --thread-id");
     return client.patch(`/v1/threads/${encodeURIComponent(threadId)}`, { is_read: false });
+  }
+
+  // Moves the thread to Trash in the console; the API stops returning it.
+  // Needs an account-wide or pod-scoped key — inbox keys get a 403.
+  if (action === "delete") {
+    const threadId = getStringFlag(parsed.flags, "thread-id");
+    if (!threadId) throw new Error("missing --thread-id");
+    return client.delete(`/v1/threads/${encodeURIComponent(threadId)}`);
   }
 
   throw new Error(`unknown threads action: ${action}`);

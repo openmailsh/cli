@@ -5,6 +5,8 @@ import { runPodCommand } from "../pod";
 import { runDomainCommand } from "../domain";
 import { runPolicyCommand } from "../policy";
 import { runAttachmentsCommand } from "../attachments";
+import { runThreadsCommand } from "../threads";
+import { runMessagesCommand } from "../messages";
 
 type Call = { method: string; path: string; body?: unknown; query?: unknown };
 
@@ -146,5 +148,27 @@ describe("attachments", () => {
     await expect(
       runAttachmentsCommand(client, parseArgs(["attachments", "text", "--message-id", "m"])),
     ).rejects.toThrow("missing --filename");
+  });
+});
+
+describe("threads and messages delete", () => {
+  it("maps delete onto the thread and message endpoints", async () => {
+    const { client, calls } = fakeClient();
+    await runThreadsCommand(client, parseArgs(["threads", "delete", "--thread-id", "thr_1"]));
+    await runMessagesCommand(client, parseArgs(["messages", "delete", "--message-id", "msg_1"]));
+    expect(calls).toEqual([
+      { method: "DELETE", path: "/v1/threads/thr_1" },
+      { method: "DELETE", path: "/v1/messages/msg_1" },
+    ]);
+  });
+
+  it("requires the id flags", async () => {
+    const { client } = fakeClient();
+    await expect(runThreadsCommand(client, parseArgs(["threads", "delete"]))).rejects.toThrow(
+      "missing --thread-id",
+    );
+    await expect(
+      runMessagesCommand(client, parseArgs(["messages", "delete"])),
+    ).rejects.toThrow("missing --message-id");
   });
 });

@@ -8,8 +8,15 @@ export async function runMessagesCommand(
   inboxIdOverride?: string,
 ) {
   const action = parsed.command[1];
+
+  if (action === "delete") {
+    const messageId = getStringFlag(parsed.flags, "message-id");
+    if (!messageId) throw new Error("missing --message-id");
+    return client.delete(`/v1/messages/${encodeURIComponent(messageId)}`);
+  }
+
   if (action !== "list") {
-    throw new Error("messages command supports only: list");
+    throw new Error("missing messages action (list|delete)");
   }
 
   const inboxId = getStringFlag(parsed.flags, "inbox-id") ?? inboxIdOverride;

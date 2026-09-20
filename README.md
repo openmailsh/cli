@@ -73,6 +73,11 @@ openmail messages list [--direction inbound|outbound]
 openmail threads list
 openmail threads get --thread-id thr_xxx
 
+# Delete: a thread goes to Trash in the console (restorable there); needs an
+# account-wide or pod-scoped key
+openmail threads delete --thread-id thr_xxx
+openmail messages delete --message-id msg_xxx
+
 # Attachments: extract text (PDF, DOCX, XLSX, PPTX, images via OCR) or download
 openmail attachments text --message-id msg_xxx --filename report.pdf
 openmail attachments get --message-id msg_xxx --filename report.pdf [--out ./report.pdf]
