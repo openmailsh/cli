@@ -138,12 +138,18 @@ async function main() {
     });
     output = await runSendCommand(client, parsed, inboxId);
   } else if (command === "messages") {
-    const inboxId = await resolveInboxIdWithFallback({
-      client,
-      parsed,
-      statePath: globalConfig.statePath,
-      ctx,
-    });
+    // Only `list` is inbox-scoped; `delete` takes a message id and must not
+    // trip the inbox fallback (which can prompt or fail on a fresh install).
+    const action = parsed.command[1];
+    const inboxId =
+      action === "list"
+        ? await resolveInboxIdWithFallback({
+            client,
+            parsed,
+            statePath: globalConfig.statePath,
+            ctx,
+          })
+        : undefined;
     output = await runMessagesCommand(client, parsed, inboxId);
   } else if (command === "threads") {
     const action = parsed.command[1];
@@ -213,8 +219,8 @@ function printHelp(topic?: string) {
         "  domain     Manage custom sending domains",
         "  policy     Correspondent policy: who may email an inbox, who it may email",
         "  send       Send an email",
-        "  messages   List messages for an inbox",
-        "  threads    List/get threads",
+        "  messages   List/delete messages for an inbox",
+        "  threads    List/get/delete threads",
         "  attachments  Download or extract text from an attachment",
         "  feedback   Report a bug, friction, or feature request to the OpenMail team",
         "  update     Update the CLI to the latest version",
@@ -431,6 +437,7 @@ function printHelp(topic?: string) {
         "",
         "Subcommands:",
         "  list [--inbox-id <id>] [--direction inbound|outbound] [--limit <n>] [--offset <n>]",
+        "  delete --message-id <id>     Delete a message (account or pod key)",
         "",
         ...globalFlags,
       ].join("\n"),
@@ -448,6 +455,7 @@ function printHelp(topic?: string) {
         "  get --thread-id <id>",
         "  read --thread-id <id>        Mark a thread as read",
         "  unread --thread-id <id>      Mark a thread as unread",
+        "  delete --thread-id <id>      Move a thread to Trash (account or pod key)",
         "",
         ...globalFlags,
       ].join("\n"),
