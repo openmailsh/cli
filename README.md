@@ -73,8 +73,8 @@ openmail messages list [--direction inbound|outbound]
 openmail threads list
 openmail threads get --thread-id thr_xxx
 
-# Delete: a thread goes to Trash in the console (restorable there); needs an
-# account-wide or pod-scoped key
+# Delete. A thread lands in Trash in the console, where it can be restored.
+# Both need an account-wide or pod-scoped key.
 openmail threads delete --thread-id thr_xxx
 openmail messages delete --message-id msg_xxx
 

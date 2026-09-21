@@ -44,7 +44,7 @@ export async function runThreadsCommand(
   }
 
   // Moves the thread to Trash in the console; the API stops returning it.
-  // Needs an account-wide or pod-scoped key — inbox keys get a 403.
+  // Needs an account-wide or pod-scoped key. Inbox keys get a 403.
   if (action === "delete") {
     const threadId = getStringFlag(parsed.flags, "thread-id");
     if (!threadId) throw new Error("missing --thread-id");
