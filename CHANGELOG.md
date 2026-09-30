@@ -13,6 +13,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Thi
 - `openmail threads delete --thread-id <id>` moves a thread to Trash in the console and out of the API.
 - `openmail messages delete --message-id <id>` deletes a single message.
 - Both need an account-wide or pod-scoped key. Inbox-scoped keys get a 403.
+- `openmail send --bcc <email>` (repeatable) blind-copies an address, hidden from To and Cc. For CRM logging addresses such as HubSpot or Salesforce. Checked against outbound sender rules like every other recipient.
 
 ## [0.7.2]
 
