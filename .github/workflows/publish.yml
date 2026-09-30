@@ -1,15 +1,25 @@
 name: Publish
 
+# Runs on every merge to main and on a manually pushed v* tag. Publishing is
+# idempotent: the version in package.json is compared against npm, and nothing
+# happens when it is already there. So a PR that bumps `version` and adds its
+# CHANGELOG entry releases itself on merge; a PR that leaves `version` alone
+# is a no-op here. The tag trigger is kept as a manual fallback.
 on:
   push:
+    branches: [main]
     tags:
       - 'v*'
+
+concurrency:
+  group: publish
+  cancel-in-progress: false
 
 jobs:
   publish:
     runs-on: ubuntu-latest
     permissions:
-      contents: write  # create GitHub Release
+      contents: write  # create tag + GitHub Release
       id-token: write  # npm provenance
 
     steps:
@@ -24,21 +34,50 @@ jobs:
       # Trusted publishing (OIDC) needs npm >= 11.5; Node 22 ships 10.x.
       - run: npm install -g npm@latest
 
-      - run: npm ci
+      - name: Decide whether this version needs publishing
+        id: version
+        run: |
+          version=$(node -p "require('./package.json').version")
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "tag=v$version" >> "$GITHUB_OUTPUT"
+          if npm view "@openmail/cli@$version" version >/dev/null 2>&1; then
+            echo "@openmail/cli@$version is already on npm; nothing to do"
+            echo "publish=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "publish=true" >> "$GITHUB_OUTPUT"
+          fi
 
-      - run: npm run build
+      - if: steps.version.outputs.publish == 'true'
+        run: npm ci
+
+      - if: steps.version.outputs.publish == 'true'
+        run: npm run build
 
       # No token: the registry trusts this repo + workflow via OIDC.
       - name: Publish to npm
+        if: steps.version.outputs.publish == 'true'
         run: npm publish --provenance --access public
 
-      - name: Create GitHub Release
+      - name: Tag the release commit
+        if: steps.version.outputs.publish == 'true' && github.ref_type == 'branch'
         run: |
-          if gh release view "${{ github.ref_name }}" >/dev/null 2>&1; then
-            echo "Release ${{ github.ref_name }} already exists, skipping"
+          tag="${{ steps.version.outputs.tag }}"
+          if git ls-remote --exit-code --tags origin "refs/tags/$tag" >/dev/null 2>&1; then
+            echo "Tag $tag already exists, skipping"
           else
-            gh release create "${{ github.ref_name }}" \
-              --title "${{ github.ref_name }}" \
+            git tag "$tag"
+            git push origin "$tag"
+          fi
+
+      - name: Create GitHub Release
+        if: steps.version.outputs.publish == 'true'
+        run: |
+          tag="${{ steps.version.outputs.tag }}"
+          if gh release view "$tag" >/dev/null 2>&1; then
+            echo "Release $tag already exists, skipping"
+          else
+            gh release create "$tag" \
+              --title "$tag" \
               --generate-notes
           fi
         env:
