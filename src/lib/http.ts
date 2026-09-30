@@ -110,6 +110,7 @@ export class OpenMailHttpClient {
     inboxId: string;
     to: string;
     cc?: string[];
+    bcc?: string[];
     subject?: string;
     body: string;
     bodyHtml?: string;
@@ -137,6 +138,9 @@ export class OpenMailHttpClient {
       for (const address of params.cc ?? []) {
         formData.append("cc", address);
       }
+      for (const address of params.bcc ?? []) {
+        formData.append("bcc", address);
+      }
 
       for (const att of params.attachments) {
         const data = await readFile(att.path);
@@ -157,6 +161,7 @@ export class OpenMailHttpClient {
     };
     if (params.subject) payload.subject = params.subject;
     if (params.cc?.length) payload.cc = params.cc;
+    if (params.bcc?.length) payload.bcc = params.bcc;
     if (params.bodyHtml) payload.bodyHtml = params.bodyHtml;
     if (params.threadId) payload.threadId = params.threadId;
     if (params.includeQuote === false) payload.includeQuote = false;
