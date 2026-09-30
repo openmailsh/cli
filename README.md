@@ -63,6 +63,10 @@ openmail send --to hello@example.com --subject "Hi" --body "Hello"
 openmail send --to a@example.com --cc b@example.com --cc c@example.com \
   --subject "Hi" --body "Hello"
 
+# Blind-copy a CRM logging address (hidden from To/Cc; repeatable)
+openmail send --to hello@example.com --bcc crm@hubspot.example \
+  --subject "Hi" --body "Hello"
+
 # Send with a custom Reply-To
 # (free plan: must be an inbox you own; Pro+: any address)
 openmail send --to hello@example.com --subject "Hi" --body "Hello" \

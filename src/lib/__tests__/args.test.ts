@@ -52,4 +52,10 @@ describe("getRepeatedStringFlag", () => {
     const argv = ["send", "--cc", "a@x.com", "--cc=b@x.com", "--to", "c@x.com"];
     expect(getRepeatedStringFlag("cc", argv)).toEqual(["a@x.com", "b@x.com"]);
   });
+
+  it("keeps --bcc separate from --cc", () => {
+    const argv = ["send", "--to", "a@x.com", "--cc", "b@x.com", "--bcc", "crm@x.com", "--bcc=log@x.com"];
+    expect(getRepeatedStringFlag("cc", argv)).toEqual(["b@x.com"]);
+    expect(getRepeatedStringFlag("bcc", argv)).toEqual(["crm@x.com", "log@x.com"]);
+  });
 });

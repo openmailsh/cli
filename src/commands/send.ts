@@ -43,6 +43,7 @@ export async function runSendCommand(
   const inboxId = getStringFlag(parsed.flags, "inbox-id") ?? inboxIdOverride;
   const to = getStringFlag(parsed.flags, "to");
   const cc = getRepeatedStringFlag("cc");
+  const bcc = getRepeatedStringFlag("bcc");
   const subject = getStringFlag(parsed.flags, "subject");
   const body = getStringFlag(parsed.flags, "body");
   const bodyHtml = getStringFlag(parsed.flags, "body-html");
@@ -90,6 +91,7 @@ export async function runSendCommand(
     inboxId,
     to,
     cc: cc.length > 0 ? cc : undefined,
+    bcc: bcc.length > 0 ? bcc : undefined,
     subject,
     body,
     bodyHtml,
