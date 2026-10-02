@@ -1,5 +1,13 @@
 import crypto from "node:crypto";
+import { version } from "../../package.json";
 import { proxyAwareFetch, proxyFromEnv } from "./fetch";
+
+// Lets the API attribute usage to the CLI (`api_keys.lastClient`,
+// `inboxes.createdVia`). Keep both in sync with `lib/api-client.ts` in the API.
+export const CLIENT_HEADERS: Readonly<Record<string, string>> = {
+  "X-OpenMail-Client": "cli",
+  "User-Agent": `openmail-cli/${version}`,
+};
 
 export type HttpClientConfig = {
   baseUrl: string;
@@ -93,7 +101,7 @@ export class OpenMailHttpClient {
     const url = `${this.baseUrl}${path}`;
     const response = await proxyAwareFetch(url, {
       method: "GET",
-      headers: { Authorization: `Bearer ${this.apiKey}` },
+      headers: { ...CLIENT_HEADERS, Authorization: `Bearer ${this.apiKey}` },
     });
     if (!response.ok) {
       const text = await response.text();
@@ -175,6 +183,7 @@ export class OpenMailHttpClient {
   private async request(url: string, init: RequestInit): Promise<unknown> {
     const isFormData = init.body instanceof FormData;
     const headers: Record<string, string> = {
+      ...CLIENT_HEADERS,
       Authorization: `Bearer ${this.apiKey}`,
       ...(init.body && !isFormData ? { "Content-Type": "application/json" } : {}),
       ...(init.headers as Record<string, string> | undefined),
