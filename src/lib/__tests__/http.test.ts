@@ -37,6 +37,15 @@ describe("describeHttpError", () => {
 });
 
 describe("OpenMailHttpClient errors", () => {
+  it("identifies itself to the API on every request", async () => {
+    const fetchMock = vi.fn(async () => new Response("[]", { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+    await client().get("/v1/inboxes");
+    const headers = (fetchMock.mock.calls[0] as unknown[])[1] as { headers: Record<string, string> };
+    expect(headers.headers["X-OpenMail-Client"]).toBe("cli");
+    expect(headers.headers["User-Agent"]).toMatch(/^openmail-cli\/\d+\.\d+\.\d+/);
+  });
+
   it("throws ApiError with the API's own label for JSON errors", async () => {
     vi.stubGlobal(
       "fetch",
