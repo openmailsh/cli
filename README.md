@@ -113,6 +113,7 @@ openmail domain add --domain mail.example.com [--pod-id pod_xxx]   # returns DNS
 openmail domain list
 openmail domain get --domain-id dom_xxx
 openmail domain verify --domain-id dom_xxx
+openmail domain update --domain-id dom_xxx --pod-id pod_xxx   # or --all-pods
 openmail domain delete --domain-id dom_xxx
 ```
 
