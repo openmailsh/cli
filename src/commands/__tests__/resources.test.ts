@@ -69,12 +69,27 @@ describe("domain", () => {
     const run = (argv: string[]) => runDomainCommand(client, parseArgs(argv));
     await run(["domain", "add", "--domain", "mail.example.com", "--pod-id", "pod_1"]);
     await run(["domain", "verify", "--domain-id", "dom_1"]);
+    await run(["domain", "update", "--domain-id", "dom_1", "--pod-id", "pod_2"]);
+    await run(["domain", "update", "--domain-id", "dom_1", "--all-pods"]);
     await run(["domain", "delete", "--domain-id", "dom_1"]);
     expect(calls).toEqual([
       { method: "POST", path: "/v1/domains", body: { domain: "mail.example.com", podId: "pod_1" } },
       { method: "POST", path: "/v1/domains/dom_1/verify", body: undefined },
+      { method: "PATCH", path: "/v1/domains/dom_1", body: { podId: "pod_2" } },
+      { method: "PATCH", path: "/v1/domains/dom_1", body: { podId: null } },
       { method: "DELETE", path: "/v1/domains/dom_1" },
     ]);
+  });
+
+  it("refuses an update with nothing to change or with both scopes", async () => {
+    const { client } = fakeClient();
+    const run = (argv: string[]) => runDomainCommand(client, parseArgs(argv));
+    await expect(run(["domain", "update", "--domain-id", "dom_1"])).rejects.toThrow(
+      "nothing to update",
+    );
+    await expect(
+      run(["domain", "update", "--domain-id", "dom_1", "--pod-id", "pod_2", "--all-pods"]),
+    ).rejects.toThrow("not both");
   });
 
   it("requires --domain on add", async () => {

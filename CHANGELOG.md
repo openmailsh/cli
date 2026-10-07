@@ -6,6 +6,12 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Thi
 
 ---
 
+## [0.8.1]
+
+### Added
+
+- `openmail domain update --domain-id <id> --pod-id <pod_id>` scopes a verified domain to one pod; `--all-pods` makes it account-wide again. DNS records are untouched. Needs an account-wide key. Until now the only way to change scope from the CLI was delete and re-add.
+
 ## [0.8.0]
 
 ### Added

@@ -1,16 +1,17 @@
 import type { ParsedArgs } from "../lib/args";
-import { getNumberFlag, getStringFlag } from "../lib/args";
+import { getBooleanFlag, getNumberFlag, getStringFlag } from "../lib/args";
 import type { OpenMailHttpClient } from "../lib/http";
 
 /**
  * `domain …`: custom sending domains. `add` returns the DNS records to
- * publish; `verify` re-checks them. Pass --pod-id to scope a domain to one
- * pod (a pod-scoped key may only pass its own pod).
+ * publish; `verify` re-checks them; `update` changes which pods may use it.
+ * Pass --pod-id to scope a domain to one pod (a pod-scoped key may only pass
+ * its own pod on `add`).
  */
 export async function runDomainCommand(client: OpenMailHttpClient, parsed: ParsedArgs) {
   const action = parsed.command[1];
   if (!action) {
-    throw new Error("missing domain action (add|list|get|verify|delete)");
+    throw new Error("missing domain action (add|list|get|verify|update|delete)");
   }
 
   if (action === "add") {
@@ -34,6 +35,20 @@ export async function runDomainCommand(client: OpenMailHttpClient, parsed: Parse
 
   if (action === "verify") {
     return client.post(`${domainPath(parsed)}/verify`);
+  }
+
+  if (action === "update") {
+    // Scope only. `--pod-id <id>` narrows the domain to one pod; `--all-pods`
+    // makes it account-wide. Needs an account-wide key.
+    const podId = getStringFlag(parsed.flags, "pod-id");
+    const allPods = getBooleanFlag(parsed.flags, "all-pods");
+    if (podId && allPods) {
+      throw new Error("pass either --pod-id or --all-pods, not both");
+    }
+    if (!podId && !allPods) {
+      throw new Error("nothing to update: pass --pod-id <pod_id> or --all-pods");
+    }
+    return client.patch(domainPath(parsed), { podId: podId ?? null });
   }
 
   if (action === "delete") {
