@@ -6,6 +6,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Thi
 
 ---
 
+## Unreleased
+
+- Add `drafts create`, `list`, `get`, and `send`, including stored-version checks before sending.
+
 ## [0.8.1]
 
 ### Added
