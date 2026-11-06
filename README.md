@@ -157,3 +157,18 @@ openmail policy audit [--direction inbound|outbound] [--since <iso>] [--until <i
 ## Contributing
 
 Bug reports, feature requests, and pull requests are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md) to get started.
+
+## Email drafts
+
+```bash
+openmail drafts create --to reader@example.com --subject "Proposal" --body "Please review." --json
+openmail drafts list --query Proposal --limit 20 --offset 0 --json
+openmail drafts get --draft-id <id> --json
+openmail drafts send --draft-id <id> --updated-at <reviewed-updatedAt> --json
+```
+
+All commands accept `--inbox-id`; otherwise they use the configured inbox. Creation never sends mail and allows incomplete drafts, optional `--body-html`, and repeatable `--cc` / `--bcc`. Drafts do not support attachments.
+
+Review recipients, subject and body before sending. `drafts send` requires the exact `updatedAt` returned by `drafts get`, sends stored content, and removes the draft only on success. A stale version returns 409 and must be reviewed again; failed or pending sends retain it. The command does not fetch a newer version or retry a changed draft automatically.
+
+Requires the API from [OpenMail #621](https://github.com/openmailsh/openmail/pull/621).
