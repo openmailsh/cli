@@ -1,6 +1,6 @@
 import type { ParsedArgs } from "../lib/args";
 import { countFlagOccurrences, getRepeatedStringFlag, getStringFlag } from "../lib/args";
-import type { OpenMailHttpClient } from "../lib/http";
+import { ApiError, type OpenMailHttpClient } from "../lib/http";
 
 export async function runDraftsCommand(client: OpenMailHttpClient, parsed: ParsedArgs, inboxIdOverride?: string) {
   const action = parsed.command[1];
@@ -56,5 +56,25 @@ export async function runDraftsCommand(client: OpenMailHttpClient, parsed: Parse
   for (const flag of ["to", "cc", "bcc", "subject", "body", "body-html", "attach", "thread-id", "reply-to"]) {
     if (flag in parsed.flags) throw new Error(`drafts send uses stored content; --${flag} cannot override it`);
   }
-  return client.post(`${draftPath}/send`, { updatedAt });
+  try {
+    return await client.post(`${draftPath}/send`, { updatedAt });
+  } catch (err) {
+    if (err instanceof ApiError && typeof err.body === "object" && err.body !== null) {
+      const body = err.body as Record<string, unknown>;
+      let message: string | undefined;
+      switch (body.error) {
+        case "draft_changed":
+          message = "The saved draft version no longer matches the reviewed version. Do not send automatically. Run drafts get, show the current To/Cc/Bcc, subject and full body to the user, and obtain approval before sending with its current updatedAt. A failed send can also advance updatedAt without changing the content.";
+          break;
+        case "send_failed":
+          message = "The send attempt failed and the draft is still saved. Its updatedAt may have advanced even though its content did not change. Do not retry automatically. Run drafts get, show the current To/Cc/Bcc, subject and full body to the user, and obtain approval to retry with its current updatedAt. Do not copy the draft into send.";
+          break;
+        case "draft_sending":
+          message = "A send of this draft is still in progress or has already been accepted. Do not retry now, change recipients, or copy it into send. Wait and check the inbox for the sent message and drafts get for the saved draft before considering another send; a missing draft may already have been sent.";
+          break;
+      }
+      if (message) throw new ApiError(message, err.status, { ...body, message });
+    }
+    throw err;
+  }
 }

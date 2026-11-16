@@ -51,6 +51,27 @@ describe("draft commands", () => {
   });
 
   it.each([
+    { status: 409, error: "draft_changed", message: "This draft changed. Refresh before continuing.", guidance: "obtain approval before sending" },
+    { status: 502, error: "send_failed", message: "Sending failed. Your draft is saved. Refresh and try again.", guidance: "obtain approval to retry" },
+    { status: 409, error: "draft_sending", message: "Sending is still being processed. Refresh and try again shortly.", guidance: "Wait and check the inbox" },
+  ])("explains $error for agents without fetching or retrying", async ({ status, error, message, guidance }) => {
+    const fetch = vi.fn().mockResolvedValue(new Response(JSON.stringify({ error, message }), { status }));
+    vi.stubGlobal("fetch", fetch);
+    await expect(run(["send", "--draft-id", "d", "--updated-at", version])).rejects.toMatchObject({
+      status, message: expect.stringContaining(guidance),
+      body: { error, message: expect.stringContaining(guidance) },
+    });
+    expect(fetch).toHaveBeenCalledTimes(1);
+    expect(JSON.parse(fetch.mock.calls[0][1].body)).toEqual({ updatedAt: version });
+  });
+
+  it("preserves unrelated API errors", async () => {
+    const body = { error: "recipient_not_permitted", message: "Recipient is blocked" };
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify(body), { status: 403 })));
+    await expect(run(["send", "--draft-id", "d", "--updated-at", version])).rejects.toMatchObject({ status: 403, body });
+  });
+
+  it.each([
     ["send", "--draft-id", "d"], ["send", "--draft-id", "d", "--updated-at", "invalid"],
     ["send", "--draft-id", "d", "--updated-at", version, "--to", "changed@example.com"],
     ["create", "--attach", "file.txt"], ["create", "--to", "a@example.com", "--to", "b@example.com"],
