@@ -164,10 +164,10 @@ Bug reports, feature requests, and pull requests are welcome. See [CONTRIBUTING.
 openmail drafts create --to reader@example.com --subject "Proposal" --body "Please review." --json
 openmail drafts list --query Proposal --limit 20 --offset 0 --json
 openmail drafts get --draft-id <id> --json
-openmail drafts send --draft-id <id> --updated-at <reviewed-updatedAt> --json
+openmail drafts send --draft-id <id> --updated-at <reviewed-updatedAt> --inbox-id <sender-inbox> --json
 ```
 
-All commands accept `--inbox-id`; otherwise they use the configured inbox. Creation never sends mail and allows incomplete drafts, optional `--body-html`, and repeatable `--cc` / `--bcc`. Drafts do not support attachments.
+Drafts belong to the organisation: `create` and `list` do not use the configured default inbox. Creation may omit `--inbox-id` so the sender can be chosen later. Listing accepts an optional `--inbox-id` filter; `get` needs only `--draft-id`. Sending accepts `--inbox-id`, or uses the sender already saved on the draft. Creation never sends mail and allows incomplete drafts, optional `--body-html`, and repeatable `--cc` / `--bcc`. Drafts do not support attachments.
 
 Review recipients, subject and body before sending. `drafts send` requires the exact `updatedAt` returned by `drafts get`, sends stored content, and removes the draft only on success. A stale version returns 409 and must be reviewed again; failed or pending sends retain it. The command does not fetch a newer version or retry a changed draft automatically.
 

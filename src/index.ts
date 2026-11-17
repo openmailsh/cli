@@ -143,8 +143,7 @@ async function main() {
     if (!["create", "list", "get", "send"].includes(parsed.command[1])) {
       throw new Error("drafts action must be create, list, get or send");
     }
-    const inboxId = await resolveInboxIdWithFallback({ client, parsed, statePath: globalConfig.statePath, ctx });
-    output = await runDraftsCommand(client, parsed, inboxId);
+    output = await runDraftsCommand(client, parsed);
   } else if (command === "messages") {
     // Only `list` is inbox-scoped; `delete` takes a message id and must not
     // trip the inbox fallback (which can prompt or fail on a fresh install).
@@ -449,13 +448,13 @@ function printHelp(topic?: string) {
     console.log([
       "openmail drafts",
       "",
-      "  create [--to <email>] [--cc <email>] [--bcc <email>] [--subject <text>] [--body <text>] [--body-html <html>]",
-      "  list [--query <text>] [--limit <1-100>] [--offset <n>]",
+      "  create [--inbox-id <id>] [--to <email>] [--cc <email>] [--bcc <email>] [--subject <text>] [--body <text>] [--body-html <html>]",
+      "  list [--inbox-id <id>] [--query <text>] [--limit <1-100>] [--offset <n>]",
       "  get --draft-id <id>",
-      "  send --draft-id <id> --updated-at <reviewed updatedAt>",
+      "  send --draft-id <id> --updated-at <reviewed updatedAt> [--inbox-id <sender>]",
       "",
-      "All actions accept --inbox-id <id> and --json. Cc/Bcc flags are repeatable.",
-      "Creation saves an unsent draft; incomplete drafts are allowed. Attachments are not supported.",
+      "All actions accept --json. Cc/Bcc flags are repeatable. Drafts belong to the organisation.",
+      "Creation needs no inbox. Select --inbox-id at send time, or use the saved sender. No attachments.",
       "Review with get before sending. Pass its exact updatedAt; changed versions return 409.",
       "Sending uses stored recipients/content, removes the draft on success and retains it on failure.",
     ].join("\n"));

@@ -2,20 +2,19 @@ import type { ParsedArgs } from "../lib/args";
 import { countFlagOccurrences, getRepeatedStringFlag, getStringFlag } from "../lib/args";
 import { ApiError, type OpenMailHttpClient } from "../lib/http";
 
-export async function runDraftsCommand(client: OpenMailHttpClient, parsed: ParsedArgs, inboxIdOverride?: string) {
+export async function runDraftsCommand(client: OpenMailHttpClient, parsed: ParsedArgs) {
   const action = parsed.command[1];
   if (!action) throw new Error("missing drafts action (create|list|get|send)");
   if (!["create", "list", "get", "send"].includes(action)) throw new Error(`unknown drafts action: ${action}`);
-  const inboxId = getStringFlag(parsed.flags, "inbox-id") ?? inboxIdOverride;
-  if (!inboxId) throw new Error("missing inbox id; run `openmail init` or pass --inbox-id");
-  const path = `/v1/inboxes/${encodeURIComponent(inboxId)}/drafts`;
+  const inboxId = getStringFlag(parsed.flags, "inbox-id");
+  const path = "/v1/drafts";
 
   if (action === "create") {
     for (const flag of ["attach", "thread-id", "reply-to", "no-quote"]) {
       if (flag in parsed.flags) throw new Error(`drafts do not support --${flag}`);
     }
     if (countFlagOccurrences("to") > 1) throw new Error("--to may only be given once; use --cc or --bcc for additional recipients");
-    const body: Record<string, unknown> = {};
+    const body: Record<string, unknown> = inboxId ? { inboxId } : {};
     for (const [flag, field] of [["to", "to"], ["subject", "subject"], ["body", "body"], ["body-html", "bodyHtml"]]) {
       const value = parsed.flags[flag];
       if (value !== undefined) {
@@ -41,12 +40,15 @@ export async function runDraftsCommand(client: OpenMailHttpClient, parsed: Parse
       }
       pagination[flag] = value;
     }
-    return client.get(path, { ...pagination, q: getStringFlag(parsed.flags, "query") });
+    return client.get(path, { ...pagination, inboxId, q: getStringFlag(parsed.flags, "query") });
   }
   const draftId = getStringFlag(parsed.flags, "draft-id");
   if (!draftId) throw new Error("missing --draft-id");
   const draftPath = `${path}/${encodeURIComponent(draftId)}`;
-  if (action === "get") return client.get(draftPath);
+  if (action === "get") {
+    if (inboxId) throw new Error("drafts get uses only --draft-id; choose --inbox-id when sending");
+    return client.get(draftPath);
+  }
   // Do not fetch and substitute the latest version: only send what was reviewed.
   const updatedAt = getStringFlag(parsed.flags, "updated-at");
   if (!updatedAt) throw new Error("missing --updated-at; use the exact updatedAt from the draft you reviewed with `drafts get`");
@@ -57,7 +59,7 @@ export async function runDraftsCommand(client: OpenMailHttpClient, parsed: Parse
     if (flag in parsed.flags) throw new Error(`drafts send uses stored content; --${flag} cannot override it`);
   }
   try {
-    return await client.post(`${draftPath}/send`, { updatedAt });
+    return await client.post(`${draftPath}/send`, { updatedAt, ...(inboxId ? { inboxId } : {}) });
   } catch (err) {
     if (err instanceof ApiError && typeof err.body === "object" && err.body !== null) {
       const body = err.body as Record<string, unknown>;

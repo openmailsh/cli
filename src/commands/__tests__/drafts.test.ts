@@ -8,7 +8,7 @@ const client = new OpenMailHttpClient({ baseUrl: "https://example.invalid", apiK
 function run(args: string[]) {
   const argv = ["drafts", ...args];
   vi.spyOn(process, "argv", "get").mockReturnValue(["node", "openmail", ...argv]);
-  return runDraftsCommand(client, parseArgs(argv), "default-inbox");
+  return runDraftsCommand(client, parseArgs(argv));
 }
 afterEach(() => { vi.restoreAllMocks(); vi.unstubAllGlobals(); });
 
@@ -17,7 +17,7 @@ describe("draft commands", () => {
     const fetch = vi.fn().mockResolvedValue(new Response(JSON.stringify({ id: "draft-1" })));
     vi.stubGlobal("fetch", fetch);
     await run(["create", "--to", "a@example.com", "--cc", "b@example.com", "--cc=c@example.com", "--bcc", "d@example.com", "--body", " Plain ", "--body-html", "<p>HTML</p>"]);
-    expect(fetch.mock.calls[0][0]).toBe("https://example.invalid/v1/inboxes/default-inbox/drafts");
+    expect(fetch.mock.calls[0][0]).toBe("https://example.invalid/v1/drafts");
     expect(JSON.parse(fetch.mock.calls[0][1].body)).toEqual({ to: "a@example.com", cc: ["b@example.com", "c@example.com"], bcc: ["d@example.com"], body: " Plain ", bodyHtml: "<p>HTML</p>" });
     fetch.mockResolvedValue(new Response("{}"));
     await run(["create"]);
@@ -29,8 +29,8 @@ describe("draft commands", () => {
     vi.stubGlobal("fetch", fetch);
     expect(await run(["list", "--inbox-id", "i/a", "--query", "a & b", "--limit", "2", "--offset", "1"])).toEqual({ data: [], total: 3 });
     const url = new URL(fetch.mock.calls[0][0]);
-    expect(url.pathname).toBe("/v1/inboxes/i%2Fa/drafts");
-    expect(Object.fromEntries(url.searchParams)).toEqual({ q: "a & b", limit: "2", offset: "1" });
+    expect(url.pathname).toBe("/v1/drafts");
+    expect(Object.fromEntries(url.searchParams)).toEqual({ inboxId: "i/a", q: "a & b", limit: "2", offset: "1" });
   });
 
   it("reads the version and sends only the stored reviewed draft", async () => {
@@ -39,7 +39,7 @@ describe("draft commands", () => {
     vi.stubGlobal("fetch", fetch);
     expect(await run(["get", "--draft-id", "d/a"])).toMatchObject({ updatedAt: version });
     await run(["send", "--draft-id", "d/a", "--updated-at", version]);
-    expect(fetch.mock.calls[1][0]).toBe("https://example.invalid/v1/inboxes/default-inbox/drafts/d%2Fa/send");
+    expect(fetch.mock.calls[1][0]).toBe("https://example.invalid/v1/drafts/d%2Fa/send");
     expect(JSON.parse(fetch.mock.calls[1][1].body)).toEqual({ updatedAt: version });
   });
 
@@ -82,4 +82,22 @@ describe("draft commands", () => {
     await expect(run(args)).rejects.toThrow();
     expect(fetch).not.toHaveBeenCalled();
   });
+  it("selects an inbox only when explicitly requested for creation or sending", async () => {
+    const fetch = vi.fn().mockImplementation(async () => new Response("{}"));
+    vi.stubGlobal("fetch", fetch);
+    await run(["create", "--inbox-id", "i/a"]);
+    await run(["send", "--draft-id", "d", "--updated-at", version, "--inbox-id", "i/b"]);
+    expect(JSON.parse(fetch.mock.calls[0][1].body)).toEqual({ inboxId: "i/a" });
+    expect(JSON.parse(fetch.mock.calls[1][1].body)).toEqual({ inboxId: "i/b", updatedAt: version });
+    expect(fetch.mock.calls[1][0]).toBe("https://example.invalid/v1/drafts/d/send");
+  });
+  it("lists drafts without consulting or requiring a default inbox", async () => {
+    const fetch = vi.fn().mockResolvedValue(new Response('{"data":[],"total":0}'));
+    vi.stubGlobal("fetch", fetch);
+    await run(["list"]);
+    expect(new URL(fetch.mock.calls[0][0]).pathname).toBe("/v1/drafts");
+    expect(new URL(fetch.mock.calls[0][0]).searchParams.has("inboxId")).toBe(false);
+    expect(fetch).toHaveBeenCalledTimes(1);
+  });
+
 });
