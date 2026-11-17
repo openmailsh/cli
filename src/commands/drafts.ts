@@ -11,7 +11,7 @@ export async function runDraftsCommand(client: OpenMailHttpClient, parsed: Parse
 
   if (action === "create") {
     for (const flag of ["attach", "thread-id", "reply-to", "no-quote"]) {
-      if (flag in parsed.flags) throw new Error(`drafts do not support --${flag}`);
+      if (flag in parsed.flags) throw new Error(`drafts create does not support --${flag}; attachment and reply drafts can be saved in the console`);
     }
     if (countFlagOccurrences("to") > 1) throw new Error("--to may only be given once; use --cc or --bcc for additional recipients");
     const body: Record<string, unknown> = inboxId ? { inboxId } : {};
@@ -66,10 +66,10 @@ export async function runDraftsCommand(client: OpenMailHttpClient, parsed: Parse
       let message: string | undefined;
       switch (body.error) {
         case "draft_changed":
-          message = "The saved draft version no longer matches the reviewed version. Do not send automatically. Run drafts get, show the current To/Cc/Bcc, subject and full body to the user, and obtain approval before sending with its current updatedAt. A failed send can also advance updatedAt without changing the content.";
+          message = "The saved draft version no longer matches the reviewed version. Do not send automatically. Run drafts get, show the current sending inbox, To/Cc/Bcc, subject, full body, attachments and reply thread to the user, and obtain approval before sending with its current updatedAt. A failed send can also advance updatedAt without changing the content.";
           break;
         case "send_failed":
-          message = "The send attempt failed and the draft is still saved. Its updatedAt may have advanced even though its content did not change. Do not retry automatically. Run drafts get, show the current To/Cc/Bcc, subject and full body to the user, and obtain approval to retry with its current updatedAt. Do not copy the draft into send.";
+          message = "The send attempt failed and the draft is still saved. Its updatedAt may have advanced even though its content did not change. Do not retry automatically. Run drafts get, show the current sending inbox, To/Cc/Bcc, subject, full body, attachments and reply thread to the user, and obtain approval to retry with its current updatedAt. Do not copy the draft into send.";
           break;
         case "draft_sending":
           message = "A send of this draft is still in progress or has already been accepted. Do not retry now, change recipients, or copy it into send. Wait and check the inbox for the sent message and drafts get for the saved draft before considering another send; a missing draft may already have been sent.";

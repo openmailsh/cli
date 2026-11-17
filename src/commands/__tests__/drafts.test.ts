@@ -34,10 +34,14 @@ describe("draft commands", () => {
   });
 
   it("reads the version and sends only the stored reviewed draft", async () => {
-    const fetch = vi.fn().mockResolvedValueOnce(new Response(JSON.stringify({ id: "d/a", updatedAt: version })))
+    const draft = {
+      id: "d/a", inboxId: "reply-inbox", updatedAt: version, threadId: "reply-thread",
+      attachments: [{ filename: "report.pdf", contentType: "application/pdf", sizeBytes: 4, url: "https://example.invalid/draft-attachment" }],
+    };
+    const fetch = vi.fn().mockResolvedValueOnce(new Response(JSON.stringify(draft)))
       .mockResolvedValueOnce(new Response('{"messageId":"m","threadId":"t","status":"sent"}'));
     vi.stubGlobal("fetch", fetch);
-    expect(await run(["get", "--draft-id", "d/a"])).toMatchObject({ updatedAt: version });
+    expect(await run(["get", "--draft-id", "d/a"])).toEqual(draft);
     await run(["send", "--draft-id", "d/a", "--updated-at", version]);
     expect(fetch.mock.calls[1][0]).toBe("https://example.invalid/v1/drafts/d%2Fa/send");
     expect(JSON.parse(fetch.mock.calls[1][1].body)).toEqual({ updatedAt: version });

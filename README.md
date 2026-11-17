@@ -167,8 +167,8 @@ openmail drafts get --draft-id <id> --json
 openmail drafts send --draft-id <id> --updated-at <reviewed-updatedAt> --inbox-id <sender-inbox> --json
 ```
 
-Drafts belong to the organisation: `create` and `list` do not use the configured default inbox. Creation may omit `--inbox-id` so the sender can be chosen later. Listing accepts an optional `--inbox-id` filter; `get` needs only `--draft-id`. Sending accepts `--inbox-id`, or uses the sender already saved on the draft. Creation never sends mail and allows incomplete drafts, optional `--body-html`, and repeatable `--cc` / `--bcc`. Drafts do not support attachments.
+Drafts belong to the organisation: `create` and `list` do not use the configured default inbox. Creation may omit `--inbox-id` so the sender can be chosen later. Listing accepts an optional `--inbox-id` filter; `get` needs only `--draft-id`. Sending accepts `--inbox-id`, or uses the sender already saved on the draft. Creation never sends mail and allows incomplete drafts, optional `--body-html`, and repeatable `--cc` / `--bcc`. CLI creation does not accept attachments or reply context. Drafts saved in the console can contain both: list/get retain their `attachments` metadata and `threadId`, and sending preserves the stored files and reply thread. Reply drafts keep their original sending inbox.
 
-Review recipients, subject and body before sending. `drafts send` requires the exact `updatedAt` returned by `drafts get`, sends stored content, and removes the draft only on success. A stale version returns 409 and must be reviewed again; failed or pending sends retain it. The command does not fetch a newer version or retry a changed draft automatically.
+Review the sending inbox, recipients, subject, full body, attachments and reply thread before sending. `drafts send` requires the exact `updatedAt` returned by `drafts get`, sends stored content, and removes the draft only on success. A stale version returns 409 and must be reviewed again; failed or pending sends retain it. The command does not fetch a newer version or retry a changed draft automatically.
 
-Requires the API from [OpenMail #621](https://github.com/openmailsh/openmail/pull/621).
+Requires the API from [OpenMail #659](https://github.com/openmailsh/openmail/pull/659).

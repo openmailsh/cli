@@ -454,7 +454,9 @@ function printHelp(topic?: string) {
       "  send --draft-id <id> --updated-at <reviewed updatedAt> [--inbox-id <sender>]",
       "",
       "All actions accept --json. Cc/Bcc flags are repeatable. Drafts belong to the organisation.",
-      "Creation needs no inbox. Select --inbox-id at send time, or use the saved sender. No attachments.",
+      "Creation needs no inbox. Select --inbox-id at send time, or use the saved sender.",
+      "CLI creation does not accept attachments or reply context; console drafts can include both.",
+      "Review the saved sender, recipients, content, attachments and reply thread. Replies keep their original inbox.",
       "Review with get before sending. Pass its exact updatedAt; changed versions return 409.",
       "Sending uses stored recipients/content, removes the draft on success and retains it on failure.",
     ].join("\n"));
