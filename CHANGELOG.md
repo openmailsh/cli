@@ -6,6 +6,12 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Thi
 
 ---
 
+## [0.9.0]
+
+### Added
+
+- Add inbox-owned drafts with reply and forward context, file and inline image uploads, combined inbox and pod filters, and reviewed-version sending.
+
 ## [0.8.1]
 
 ### Added

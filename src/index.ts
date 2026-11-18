@@ -9,6 +9,7 @@ import { runPolicyCommand } from "./commands/policy";
 import { runAttachmentsCommand } from "./commands/attachments";
 import { runMessagesCommand } from "./commands/messages";
 import { runThreadsCommand } from "./commands/threads";
+import { runDraftsCommand } from "./commands/drafts";
 import { runSendCommand } from "./commands/send";
 import { runInitCommand } from "./commands/init";
 import { ctxFromConfig, resolveGlobalConfig } from "./lib/config";
@@ -91,6 +92,7 @@ async function main() {
     "policy",
     "attachments",
     "send",
+    "drafts",
     "messages",
     "threads",
     "feedback",
@@ -137,6 +139,8 @@ async function main() {
       ctx,
     });
     output = await runSendCommand(client, parsed, inboxId);
+  } else if (command === "drafts") {
+    output = await runDraftsCommand(client, parsed);
   } else if (command === "messages") {
     // Only `list` is inbox-scoped; `delete` takes a message id and must not
     // trip the inbox fallback (which can prompt or fail on a fresh install).
@@ -219,6 +223,7 @@ function printHelp(topic?: string) {
         "  domain     Manage custom sending domains",
         "  policy     Correspondent policy: who may email an inbox, who it may email",
         "  send       Send an email",
+        "  drafts     Create, list, review and send saved drafts",
         "  messages   List/delete messages for an inbox",
         "  threads    List/get/delete threads",
         "  attachments  Download or extract text from an attachment",
@@ -433,6 +438,27 @@ function printHelp(topic?: string) {
         ...globalFlags,
       ].join("\n"),
     );
+    return;
+  }
+
+  if (usage === "drafts") {
+    console.log([
+      "openmail drafts",
+      "",
+      "  create --inbox-id <id> [--to <email>] [--cc <email>] [--bcc <email>] [--subject <text>]",
+      "         [--body <text>] [--body-html <html>] [--attach <file>] [--inline-image <content-id>=<file>]",
+      "         [--thread-id <reply-thread>] [--source-thread-id <origin-thread>]",
+      "  list [--inbox-id <id>] [--pod-id <id>] [--source-thread-id <id>] [--query <text>] [--limit <1-100>] [--offset <n>]",
+      "  get --draft-id <id>",
+      "  send --draft-id <id> --updated-at <reviewed updatedAt> [--inbox-id <owning-inbox>]",
+      "",
+      "Create requires only the sending inbox. Use --thread-id for a reply, or --source-thread-id alone for a forward.",
+      "Cc, Bcc, --attach and --inline-image are repeatable. Use cid:inline-<UUID>@openmail in HTML for each inline upload.",
+      "List searches all accessible inboxes by default. Send always uses the saved inbox.",
+      "An optional --inbox-id on send checks the owner. All actions accept --json.",
+      "Review with get before sending. Pass its exact updatedAt; changed versions return 409.",
+      "Sending uses stored recipients/content, removes the draft on success and retains it on failure.",
+    ].join("\n"));
     return;
   }
 

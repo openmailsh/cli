@@ -69,13 +69,28 @@ describe("OpenMailHttpClient errors", () => {
     expect((err as ApiError).body).toBe("Host not in allowlist: api.openmail.sh");
   });
 
-  it("bypasses the platform fetch when a proxy is configured", async () => {
-    vi.stubEnv("HTTPS_PROXY", "http://127.0.0.1:1"); // nothing listens here
-    const platformFetch = vi.fn();
-    vi.stubGlobal("fetch", platformFetch);
-    // Routed through undici + EnvHttpProxyAgent; the connect fails, but the
-    // point is that global fetch was never consulted and the error names the proxy.
+  it("uses the proxy dispatcher and preserves the multipart encoding for attachments", async () => {
+    vi.stubEnv("HTTPS_PROXY", "http://127.0.0.1:1");
+    const fetchMock = vi.fn(async (url: string, init: RequestInit & { dispatcher?: unknown }) => {
+      expect(init.dispatcher).toBeDefined();
+      const request = new Request(url, init);
+      expect(request.headers.get("Content-Type")).toMatch(/^multipart\/form-data; boundary=/);
+      const form = await request.formData();
+      expect(form.get("inboxId")).toBe("inbox-1");
+      expect(await (form.get("attachments") as File).text()).toBe("draft attachment");
+      return new Response("{}");
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    const form = new FormData();
+    form.append("inboxId", "inbox-1");
+    form.append("attachments", new Blob(["draft attachment"]), "notes.txt");
+    await client().post("/v1/drafts", form);
+    expect(fetchMock).toHaveBeenCalledOnce();
+  });
+
+  it("identifies the proxy when connecting fails", async () => {
+    vi.stubEnv("HTTPS_PROXY", "http://127.0.0.1:1");
+    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("fetch failed")));
     await expect(client().get("/v1/inboxes")).rejects.toThrow(/via proxy http:\/\/127\.0\.0\.1:1/);
-    expect(platformFetch).not.toHaveBeenCalled();
   });
 });

@@ -157,3 +157,20 @@ openmail policy audit [--direction inbound|outbound] [--since <iso>] [--until <i
 ## Contributing
 
 Bug reports, feature requests, and pull requests are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md) to get started.
+
+## Email drafts
+
+```bash
+openmail drafts create --inbox-id "<inbox-id>" --to reader@example.com --subject "Proposal" --body "Please review." --attach proposal.pdf --json
+openmail drafts list --pod-id "<pod-id>" --inbox-id "<inbox-id>" --query Proposal --limit 20 --offset 0 --json
+openmail drafts get --draft-id "<draft-id>" --json
+openmail drafts send --draft-id "<draft-id>" --updated-at "<reviewed-updatedAt>" --json
+```
+
+Choose the sending inbox when creating the draft. All content fields are optional. You can supply plain text, HTML, repeatable `--cc` and `--bcc`, and files via repeatable `--attach`. HTML can contain supported embedded or public remote images. For a local inline image, pass `--inline-image 'inline-<UUID>@openmail=./photo.png'` and reference the same ID with `cid:` in the HTML. Files and inline images share a 25 MiB limit.
+
+Use `--thread-id` to save a reply in a thread in the owning inbox. The API derives its reply subject. To associate a forward or new conversation with an existing thread, supply `--source-thread-id` alone with the message you want to send. Both appear on the source thread. List all accessible drafts or combine `--inbox-id`, `--pod-id`, `--source-thread-id`, and `--query`. Sending always uses the owning inbox. An optional `--inbox-id` on send must match it.
+
+Review the sending inbox, recipients, subject, full body, attachments and reply thread before sending. `drafts send` requires the exact `updatedAt` returned by `drafts get`, sends stored content, and removes the draft only on success. A stale version returns 409 and must be reviewed again; failed or pending sends retain it. The command does not fetch a newer version or retry a changed draft automatically.
+
+Requires the API from [OpenMail #662](https://github.com/openmailsh/openmail/pull/662).

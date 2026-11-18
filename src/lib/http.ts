@@ -74,7 +74,7 @@ export class OpenMailHttpClient {
     return this.request(`${this.baseUrl}${path}`, {
       method: "POST",
       headers,
-      body: body === undefined ? undefined : JSON.stringify(body),
+      body: body instanceof FormData ? body : JSON.stringify(body),
     });
   }
 

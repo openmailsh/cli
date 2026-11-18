@@ -1,4 +1,4 @@
-import { EnvHttpProxyAgent, fetch as undiciFetch, type Dispatcher } from "undici";
+import { EnvHttpProxyAgent, type Dispatcher } from "undici";
 
 let proxyDispatcher: Dispatcher | undefined;
 
@@ -29,10 +29,10 @@ export async function proxyAwareFetch(url: string, init?: RequestInit): Promise<
   }
   proxyDispatcher ??= new EnvHttpProxyAgent();
   try {
-    return (await undiciFetch(url, {
-      ...(init as Parameters<typeof undiciFetch>[1]),
-      dispatcher: proxyDispatcher,
-    })) as unknown as Response;
+    // Keep the platform FormData encoder for multipart uploads on both transports.
+    // Node types its dispatcher against its bundled version of undici.
+    const dispatcher = proxyDispatcher as unknown as RequestInit["dispatcher"];
+    return await fetch(url, { ...init, dispatcher });
   } catch (err) {
     // undici collapses everything into "fetch failed"; the useful part
     // (e.g. "Proxy response (403) !== 200 when HTTP Tunneling") is on `cause`.
