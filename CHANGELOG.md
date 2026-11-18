@@ -8,7 +8,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Thi
 
 ## Unreleased
 
-- Add `drafts create`, `list`, `get`, and `send`, including stored-version checks before sending.
+- Add inbox-owned drafts with reply and forward context, file and inline image uploads, combined inbox and pod filters, and reviewed-version sending.
 
 ## [0.8.1]
 

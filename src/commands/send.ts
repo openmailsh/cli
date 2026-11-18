@@ -1,5 +1,4 @@
-import { stat } from "node:fs/promises";
-import { basename, resolve } from "node:path";
+import { resolveAttachment } from "../lib/attachments";
 import type { ParsedArgs } from "../lib/args";
 import {
   getBooleanFlag,
@@ -8,32 +7,6 @@ import {
   countFlagOccurrences,
 } from "../lib/args";
 import type { OpenMailHttpClient } from "../lib/http";
-
-const MIME_TYPES: Record<string, string> = {
-  pdf: "application/pdf",
-  txt: "text/plain",
-  csv: "text/csv",
-  html: "text/html",
-  json: "application/json",
-  xml: "application/xml",
-  zip: "application/zip",
-  gz: "application/gzip",
-  png: "image/png",
-  jpg: "image/jpeg",
-  jpeg: "image/jpeg",
-  gif: "image/gif",
-  webp: "image/webp",
-  svg: "image/svg+xml",
-  doc: "application/msword",
-  docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-  xls: "application/vnd.ms-excel",
-  xlsx: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-};
-
-function getMimeType(filename: string): string {
-  const ext = filename.split(".").pop()?.toLowerCase() ?? "";
-  return MIME_TYPES[ext] || "application/octet-stream";
-}
 
 export async function runSendCommand(
   client: OpenMailHttpClient,
@@ -65,27 +38,7 @@ export async function runSendCommand(
   if (!subject && !threadId) throw new Error("missing --subject (or pass --thread-id to reply)");
   if (!body) throw new Error("missing --body");
 
-  let attachments: { path: string; filename: string; contentType: string }[] | undefined;
-
-  if (attachPaths.length > 0) {
-    attachments = [];
-    for (const raw of attachPaths) {
-      const filePath = resolve(raw);
-      try {
-        const s = await stat(filePath);
-        if (!s.isFile()) throw new Error(`not a file: ${filePath}`);
-      } catch (err: unknown) {
-        const msg = err instanceof Error ? err.message : String(err);
-        throw new Error(`cannot read attachment "${raw}": ${msg}`);
-      }
-      const filename = basename(filePath);
-      attachments.push({
-        path: filePath,
-        filename,
-        contentType: getMimeType(filename),
-      });
-    }
-  }
+  const attachments = attachPaths.length ? await Promise.all(attachPaths.map(resolveAttachment)) : undefined;
 
   return client.sendEmail({
     inboxId,

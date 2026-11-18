@@ -140,9 +140,6 @@ async function main() {
     });
     output = await runSendCommand(client, parsed, inboxId);
   } else if (command === "drafts") {
-    if (!["create", "list", "get", "send"].includes(parsed.command[1])) {
-      throw new Error("drafts action must be create, list, get or send");
-    }
     output = await runDraftsCommand(client, parsed);
   } else if (command === "messages") {
     // Only `list` is inbox-scoped; `delete` takes a message id and must not
@@ -448,15 +445,17 @@ function printHelp(topic?: string) {
     console.log([
       "openmail drafts",
       "",
-      "  create [--inbox-id <id>] [--to <email>] [--cc <email>] [--bcc <email>] [--subject <text>] [--body <text>] [--body-html <html>]",
-      "  list [--inbox-id <id>] [--query <text>] [--limit <1-100>] [--offset <n>]",
+      "  create --inbox-id <id> [--to <email>] [--cc <email>] [--bcc <email>] [--subject <text>]",
+      "         [--body <text>] [--body-html <html>] [--attach <file>] [--inline-image <content-id>=<file>]",
+      "         [--thread-id <reply-thread>] [--source-thread-id <origin-thread>]",
+      "  list [--inbox-id <id>] [--pod-id <id>] [--source-thread-id <id>] [--query <text>] [--limit <1-100>] [--offset <n>]",
       "  get --draft-id <id>",
-      "  send --draft-id <id> --updated-at <reviewed updatedAt> [--inbox-id <sender>]",
+      "  send --draft-id <id> --updated-at <reviewed updatedAt> [--inbox-id <owning-inbox>]",
       "",
-      "All actions accept --json. Cc/Bcc flags are repeatable. Drafts belong to the organisation.",
-      "Creation needs no inbox. Select --inbox-id at send time, or use the saved sender.",
-      "CLI creation does not accept attachments or reply context; console drafts can include both.",
-      "Review the saved sender, recipients, content, attachments and reply thread. Replies keep their original inbox.",
+      "Create requires only the sending inbox. Use --thread-id for a reply, or --source-thread-id alone for a forward.",
+      "Cc, Bcc, --attach and --inline-image are repeatable. Use cid:inline-<UUID>@openmail in HTML for each inline upload.",
+      "List searches all accessible inboxes by default. Send always uses the saved inbox.",
+      "An optional --inbox-id on send checks the owner. All actions accept --json.",
       "Review with get before sending. Pass its exact updatedAt; changed versions return 409.",
       "Sending uses stored recipients/content, removes the draft on success and retains it on failure.",
     ].join("\n"));

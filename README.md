@@ -161,14 +161,16 @@ Bug reports, feature requests, and pull requests are welcome. See [CONTRIBUTING.
 ## Email drafts
 
 ```bash
-openmail drafts create --to reader@example.com --subject "Proposal" --body "Please review." --json
-openmail drafts list --query Proposal --limit 20 --offset 0 --json
-openmail drafts get --draft-id <id> --json
-openmail drafts send --draft-id <id> --updated-at <reviewed-updatedAt> --inbox-id <sender-inbox> --json
+openmail drafts create --inbox-id "<inbox-id>" --to reader@example.com --subject "Proposal" --body "Please review." --attach proposal.pdf --json
+openmail drafts list --pod-id "<pod-id>" --inbox-id "<inbox-id>" --query Proposal --limit 20 --offset 0 --json
+openmail drafts get --draft-id "<draft-id>" --json
+openmail drafts send --draft-id "<draft-id>" --updated-at "<reviewed-updatedAt>" --json
 ```
 
-Drafts belong to the organisation: `create` and `list` do not use the configured default inbox. Creation may omit `--inbox-id` so the sender can be chosen later. Listing accepts an optional `--inbox-id` filter; `get` needs only `--draft-id`. Sending accepts `--inbox-id`, or uses the sender already saved on the draft. Creation never sends mail and allows incomplete drafts, optional `--body-html`, and repeatable `--cc` / `--bcc`. CLI creation does not accept attachments or reply context. Drafts saved in the console can contain both: list/get retain their `attachments` metadata and `threadId`, and sending preserves the stored files and reply thread. Reply drafts keep their original sending inbox.
+Choose the sending inbox when creating the draft. All content fields are optional. You can supply plain text, HTML, repeatable `--cc` and `--bcc`, and files via repeatable `--attach`. HTML can contain supported embedded or public remote images. For a local inline image, pass `--inline-image 'inline-<UUID>@openmail=./photo.png'` and reference the same ID with `cid:` in the HTML. Files and inline images share a 25 MiB limit.
+
+Use `--thread-id` to save a reply in a thread in the owning inbox. The API derives its reply subject. To associate a forward or new conversation with an existing thread, supply `--source-thread-id` alone with the message you want to send. Both appear on the source thread. List all accessible drafts or combine `--inbox-id`, `--pod-id`, `--source-thread-id`, and `--query`. Sending always uses the owning inbox. An optional `--inbox-id` on send must match it.
 
 Review the sending inbox, recipients, subject, full body, attachments and reply thread before sending. `drafts send` requires the exact `updatedAt` returned by `drafts get`, sends stored content, and removes the draft only on success. A stale version returns 409 and must be reviewed again; failed or pending sends retain it. The command does not fetch a newer version or retry a changed draft automatically.
 
-Requires the API from [OpenMail #659](https://github.com/openmailsh/openmail/pull/659).
+Requires the API from [OpenMail #662](https://github.com/openmailsh/openmail/pull/662).
