@@ -16,12 +16,83 @@ function run(args: string[]) {
 afterEach(() => { vi.restoreAllMocks(); vi.unstubAllGlobals(); });
 
 describe("draft commands", () => {
-  it("saves incomplete drafts and preserves To/Cc/Bcc, plain text and HTML without sending", async () => {
+  it("edits only supplied fields with the exact version and never sends", async () => {
+    const fetch = vi.fn().mockResolvedValue(new Response(JSON.stringify({ id: "d/1", updatedAt: "2026-11-18T10:00:00.000Z" })));
+    vi.stubGlobal("fetch", fetch);
+    const result = await run(["edit", "--draft-id", "d/1", "--updated-at", version, "--inbox-id", "in", "--subject", "Revised", "--cc", "a@example.com", "--cc", "b@example.com"]);
+    expect(result).toMatchObject({ id: "d/1", updatedAt: "2026-11-18T10:00:00.000Z" });
+    expect(fetch).toHaveBeenCalledTimes(1);
+    expect(fetch.mock.calls[0][0]).toBe("https://example.invalid/v1/drafts/d%2F1");
+    expect(fetch.mock.calls[0][1].method).toBe("PATCH");
+    expect(JSON.parse(fetch.mock.calls[0][1].body)).toEqual({ updatedAt: version, inboxId: "in", subject: "Revised", cc: ["a@example.com", "b@example.com"] });
+  });
+
+  it.each([
+    { args: ["--body-html", "<p>Revised</p>"], fields: { bodyHtml: "<p>Revised</p>" } },
+    { args: ["--body-html", "", "--subject", "", "--clear-to", "--clear-cc", "--clear-bcc"], fields: { bodyHtml: "", subject: "", to: null, cc: [], bcc: [] } },
+  ])("preserves explicit clears and submits HTML only: $args", async ({ args, fields }) => {
+    const fetch = vi.fn().mockResolvedValue(new Response("{}"));
+    vi.stubGlobal("fetch", fetch);
+    await run(["edit", "--draft-id", "d", "--updated-at", version, ...args]);
+    expect(JSON.parse(fetch.mock.calls[0][1].body)).toEqual({ updatedAt: version, ...fields });
+  });
+
+  it("does not refresh or retry a conflicting edit", async () => {
+    const fetch = vi.fn().mockResolvedValue(new Response(JSON.stringify({ error: "draft_changed" }), { status: 409 }));
+    vi.stubGlobal("fetch", fetch);
+    await expect(run(["edit", "--draft-id", "d", "--updated-at", version, "--body-html", "<p>Revised</p>"]))
+      .rejects.toMatchObject({ status: 409, message: expect.stringContaining("reconcile the requested changes") });
+    expect(fetch).toHaveBeenCalledTimes(1);
+    expect(fetch.mock.calls[0][1].method).toBe("PATCH");
+  });
+
+  it.each([
+    [], ["--body-html"], ["--body", "Plain"], ["--cc"],
+    ["--to", "a@example.com", "--clear-to"], ["--cc", "a@example.com", "--clear-cc"],
+    ["--clear-bcc=false"], ["--thread-id", "different"], ["--body-html", "one", "--body-html", "two"],
+  ])("rejects invalid edits before making requests: %j", async (...args) => {
+    const fetch = vi.fn();
+    vi.stubGlobal("fetch", fetch);
+    await expect(run(["edit", "--draft-id", "d", "--updated-at", version, ...args])).rejects.toThrow();
+    expect(fetch).not.toHaveBeenCalled();
+  });
+  it("deletes exactly the requested saved version without fetching or sending", async () => {
+    const fetch = vi.fn().mockResolvedValue(new Response('{"id":"d/a","deleted":true}'));
+    vi.stubGlobal("fetch", fetch);
+    expect(await run(["delete", "--draft-id", "d/a", "--updated-at", version, "--inbox-id", "owner"]))
+      .toEqual({ id: "d/a", deleted: true });
+    expect(fetch).toHaveBeenCalledTimes(1);
+    expect(fetch.mock.calls[0][0]).toBe("https://example.invalid/v1/drafts/d%2Fa");
+    expect(fetch.mock.calls[0][1]).toMatchObject({ method: "DELETE", headers: { "Content-Type": "application/json" } });
+    expect(JSON.parse(fetch.mock.calls[0][1].body)).toEqual({ updatedAt: version, inboxId: "owner" });
+  });
+  it.each([
+    [409, "draft_changed", "Do not automatically substitute"],
+    [409, "draft_sending", "does not cancel a send"],
+    [403, "forbidden", null], [404, "not_found", null],
+  ])("preserves deletion error %s %s without retrying", async (status, error, guidance) => {
+    const fetch = vi.fn().mockResolvedValue(new Response(JSON.stringify({ error, message: error }), { status: status as number }));
+    vi.stubGlobal("fetch", fetch);
+    await expect(run(["delete", "--draft-id", "d", "--updated-at", version])).rejects.toMatchObject({ status, body: { error }, ...(guidance ? { message: expect.stringContaining(guidance as string) } : {}) });
+    expect(fetch).toHaveBeenCalledTimes(1);
+    expect(JSON.parse(fetch.mock.calls[0][1].body)).toEqual({ updatedAt: version });
+  });
+  it.each([
+    ["delete"], ["delete", "--draft-id", "d"],
+    ["delete", "--draft-id", "d", "--updated-at", "invalid"],
+    ["delete", "--draft-id", "d", "--updated-at", version, "--body-html", "<p>edit</p>"],
+    ["delete", "--draft-id", "d", "--updated-at", version, "--inbox-id"],
+  ])("rejects invalid deletion before requesting: %j", async (...args) => {
+    const fetch = vi.fn(); vi.stubGlobal("fetch", fetch);
+    await expect(run(args)).rejects.toThrow();
+    expect(fetch).not.toHaveBeenCalled();
+  });
+  it("saves incomplete drafts and preserves To/Cc/Bcc and HTML without sending", async () => {
     const fetch = vi.fn().mockResolvedValue(new Response(JSON.stringify({ id: "draft-1" })));
     vi.stubGlobal("fetch", fetch);
-    await run(["create", "--inbox-id", "inbox-1", "--to", "a@example.com", "--cc", "b@example.com", "--cc=c@example.com", "--bcc", "d@example.com", "--body", " Plain ", "--body-html", "<p>HTML</p>"]);
+    await run(["create", "--inbox-id", "inbox-1", "--to", "a@example.com", "--cc", "b@example.com", "--cc=c@example.com", "--bcc", "d@example.com", "--body-html", "<p>HTML</p>"]);
     expect(fetch.mock.calls[0][0]).toBe("https://example.invalid/v1/drafts");
-    expect(JSON.parse(fetch.mock.calls[0][1].body)).toEqual({ inboxId: "inbox-1", to: "a@example.com", cc: ["b@example.com", "c@example.com"], bcc: ["d@example.com"], body: " Plain ", bodyHtml: "<p>HTML</p>" });
+    expect(JSON.parse(fetch.mock.calls[0][1].body)).toEqual({ inboxId: "inbox-1", to: "a@example.com", cc: ["b@example.com", "c@example.com"], bcc: ["d@example.com"], bodyHtml: "<p>HTML</p>" });
     fetch.mockResolvedValue(new Response("{}"));
     await run(["create", "--inbox-id", "inbox-1"]);
     expect(JSON.parse(fetch.mock.calls[1][1].body)).toEqual({ inboxId: "inbox-1" });
@@ -90,6 +161,7 @@ describe("draft commands", () => {
   it.each([
     ["send", "--draft-id", "d"], ["send", "--draft-id", "d", "--updated-at", "invalid"],
     ["send", "--draft-id", "d", "--updated-at", version, "--to", "changed@example.com"],
+    ["create", "--inbox-id", "in", "--body", "Plain"],
     ["create"], ["create", "--inbox-id"], ["create", "--inbox-id", "in", "--attach"],
     ["create", "--inbox-id", "in", "--inline-image", "invalid.png"],
     ["create", "--inbox-id", "in", "--to", "a@example.com", "--to", "b@example.com"],
