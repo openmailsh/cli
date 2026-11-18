@@ -92,8 +92,8 @@ export class OpenMailHttpClient {
     });
   }
 
-  async delete(path: string) {
-    return this.request(`${this.baseUrl}${path}`, { method: "DELETE" });
+  async delete(path: string, body?: unknown) {
+    return this.request(`${this.baseUrl}${path}`, { method: "DELETE", body: body === undefined ? undefined : JSON.stringify(body) });
   }
 
   /** GET a binary response (attachments) as raw bytes. */

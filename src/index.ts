@@ -223,7 +223,7 @@ function printHelp(topic?: string) {
         "  domain     Manage custom sending domains",
         "  policy     Correspondent policy: who may email an inbox, who it may email",
         "  send       Send an email",
-        "  drafts     Create, list, review and send saved drafts",
+        "  drafts     Create, list, review, send and delete saved drafts",
         "  messages   List/delete messages for an inbox",
         "  threads    List/get/delete threads",
         "  attachments  Download or extract text from an attachment",
@@ -451,6 +451,7 @@ function printHelp(topic?: string) {
       "  list [--inbox-id <id>] [--pod-id <id>] [--source-thread-id <id>] [--query <text>] [--limit <1-100>] [--offset <n>]",
       "  get --draft-id <id>",
       "  send --draft-id <id> --updated-at <reviewed updatedAt> [--inbox-id <owning-inbox>]",
+      "  delete --draft-id <id> --updated-at <reviewed updatedAt> [--inbox-id <owning-inbox>]",
       "",
       "Create requires only the sending inbox. Use --thread-id for a reply, or --source-thread-id alone for a forward.",
       "Cc, Bcc, --attach and --inline-image are repeatable. Use cid:inline-<UUID>@openmail in HTML for each inline upload.",
@@ -458,6 +459,7 @@ function printHelp(topic?: string) {
       "An optional --inbox-id on send checks the owner. All actions accept --json.",
       "Review with get before sending. Pass its exact updatedAt; changed versions return 409.",
       "Sending uses stored recipients/content, removes the draft on success and retains it on failure.",
+      "Delete permanently discards the draft and its files without sending. Stale versions and active sends block deletion.",
     ].join("\n"));
     return;
   }

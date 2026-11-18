@@ -16,6 +16,37 @@ function run(args: string[]) {
 afterEach(() => { vi.restoreAllMocks(); vi.unstubAllGlobals(); });
 
 describe("draft commands", () => {
+  it("deletes exactly the requested saved version without fetching or sending", async () => {
+    const fetch = vi.fn().mockResolvedValue(new Response('{"id":"d/a","deleted":true}'));
+    vi.stubGlobal("fetch", fetch);
+    expect(await run(["delete", "--draft-id", "d/a", "--updated-at", version, "--inbox-id", "owner"]))
+      .toEqual({ id: "d/a", deleted: true });
+    expect(fetch).toHaveBeenCalledTimes(1);
+    expect(fetch.mock.calls[0][0]).toBe("https://example.invalid/v1/drafts/d%2Fa");
+    expect(fetch.mock.calls[0][1]).toMatchObject({ method: "DELETE", headers: { "Content-Type": "application/json" } });
+    expect(JSON.parse(fetch.mock.calls[0][1].body)).toEqual({ updatedAt: version, inboxId: "owner" });
+  });
+  it.each([
+    [409, "draft_changed", "Do not automatically substitute"],
+    [409, "draft_sending", "does not cancel a send"],
+    [403, "forbidden", null], [404, "not_found", null],
+  ])("preserves deletion error %s %s without retrying", async (status, error, guidance) => {
+    const fetch = vi.fn().mockResolvedValue(new Response(JSON.stringify({ error, message: error }), { status: status as number }));
+    vi.stubGlobal("fetch", fetch);
+    await expect(run(["delete", "--draft-id", "d", "--updated-at", version])).rejects.toMatchObject({ status, body: { error }, ...(guidance ? { message: expect.stringContaining(guidance as string) } : {}) });
+    expect(fetch).toHaveBeenCalledTimes(1);
+    expect(JSON.parse(fetch.mock.calls[0][1].body)).toEqual({ updatedAt: version });
+  });
+  it.each([
+    ["delete"], ["delete", "--draft-id", "d"],
+    ["delete", "--draft-id", "d", "--updated-at", "invalid"],
+    ["delete", "--draft-id", "d", "--updated-at", version, "--body-html", "<p>edit</p>"],
+    ["delete", "--draft-id", "d", "--updated-at", version, "--inbox-id"],
+  ])("rejects invalid deletion before requesting: %j", async (...args) => {
+    const fetch = vi.fn(); vi.stubGlobal("fetch", fetch);
+    await expect(run(args)).rejects.toThrow();
+    expect(fetch).not.toHaveBeenCalled();
+  });
   it("saves incomplete drafts and preserves To/Cc/Bcc, plain text and HTML without sending", async () => {
     const fetch = vi.fn().mockResolvedValue(new Response(JSON.stringify({ id: "draft-1" })));
     vi.stubGlobal("fetch", fetch);

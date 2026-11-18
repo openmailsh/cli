@@ -160,6 +160,15 @@ Bug reports, feature requests, and pull requests are welcome. See [CONTRIBUTING.
 
 ## Email drafts
 
+To discard a draft when requested, read it first and delete that exact version:
+
+```bash
+openmail drafts get --draft-id "<draft-id>" --json
+openmail drafts delete --draft-id "<draft-id>" --updated-at "<reviewed-updatedAt>" --json
+```
+
+Deletion permanently removes the unsent draft and its attachments without sending. Optional `--inbox-id` checks ownership. Stale versions return `draft_changed`; review the current draft and verify it is still the one to discard before another attempt. Never automatically fetch a new version and delete it. Pending or accepted sends return `draft_sending`; deletion cannot cancel sending. Missing or already removed drafts return 404. The deployed API must support `DELETE /v1/drafts/{draftId}`.
+
 ```bash
 openmail drafts create --inbox-id "<inbox-id>" --to reader@example.com --subject "Proposal" --body "Please review." --attach proposal.pdf --json
 openmail drafts list --pod-id "<pod-id>" --inbox-id "<inbox-id>" --query Proposal --limit 20 --offset 0 --json
