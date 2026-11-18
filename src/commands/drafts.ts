@@ -6,10 +6,10 @@ import { ApiError, type OpenMailHttpClient } from "../lib/http";
 
 const globalFlags = ["api-key", "base-url", "state-path", "json", "verbose"];
 const actionFlags: Record<string, string[]> = {
-  create: ["inbox-id", "thread-id", "source-thread-id", "to", "cc", "bcc", "subject", "body", "body-html", "attach", "inline-image"],
+  create: ["inbox-id", "thread-id", "source-thread-id", "to", "cc", "bcc", "subject", "body-html", "attach", "inline-image"],
   list: ["inbox-id", "pod-id", "source-thread-id", "query", "limit", "offset"],
   get: ["draft-id"],
-  edit: ["draft-id", "updated-at", "inbox-id", "to", "cc", "bcc", "clear-to", "clear-cc", "clear-bcc", "subject", "body", "body-html"],
+  edit: ["draft-id", "updated-at", "inbox-id", "to", "cc", "bcc", "clear-to", "clear-cc", "clear-bcc", "subject", "body-html"],
   send: ["draft-id", "updated-at", "inbox-id"],
 };
 
@@ -29,7 +29,7 @@ function repeatedValues(flag: string) {
 
 function draftEdits(parsed: ParsedArgs) {
   const fields: Record<string, string | string[] | null> = {};
-  for (const [flag, field] of [["to", "to"], ["subject", "subject"], ["body", "bodyText"], ["body-html", "bodyHtml"]]) {
+  for (const [flag, field] of [["to", "to"], ["subject", "subject"], ["body-html", "bodyHtml"]]) {
     if (!(flag in parsed.flags)) continue;
     const value = parsed.flags[flag];
     if (typeof value !== "string") throw new Error(`--${flag} requires a value`);
@@ -46,8 +46,6 @@ function draftEdits(parsed: ParsedArgs) {
       fields[flag] = repeatedValues(flag);
     }
   }
-  if ("bodyHtml" in fields && !("bodyText" in fields)) throw new Error("--body-html requires --body with the replacement plain-text version");
-  if ("bodyText" in fields && !("bodyHtml" in fields)) fields.bodyHtml = null;
   if (!Object.keys(fields).length) throw new Error("drafts edit requires at least one content change");
   return fields;
 }
@@ -105,7 +103,7 @@ export async function runDraftsCommand(client: OpenMailHttpClient, parsed: Parse
     }
     if (threadId) body.threadId = threadId;
     if (sourceThreadId) body.sourceThreadId = sourceThreadId;
-    for (const [flag, field] of [["to", "to"], ["subject", "subject"], ["body", "body"], ["body-html", "bodyHtml"]]) {
+    for (const [flag, field] of [["to", "to"], ["subject", "subject"], ["body-html", "bodyHtml"]]) {
       const value = parsed.flags[flag];
       if (value !== undefined) {
         if (typeof value !== "string") throw new Error(`--${flag} requires a value`);

@@ -161,20 +161,20 @@ Bug reports, feature requests, and pull requests are welcome. See [CONTRIBUTING.
 ## Email drafts
 
 ```bash
-openmail drafts create --inbox-id "<inbox-id>" --to reader@example.com --subject "Proposal" --body "Please review." --attach proposal.pdf --json
+openmail drafts create --inbox-id "<inbox-id>" --to reader@example.com --subject "Proposal" --body-html "<p>Please review.</p>" --attach proposal.pdf --json
 openmail drafts list --pod-id "<pod-id>" --inbox-id "<inbox-id>" --query Proposal --limit 20 --offset 0 --json
 openmail drafts get --draft-id "<draft-id>" --json
-openmail drafts edit --draft-id "<draft-id>" --updated-at "<current-updatedAt>" --body "Revised proposal." --json
+openmail drafts edit --draft-id "<draft-id>" --updated-at "<current-updatedAt>" --body-html "<p>Revised proposal.</p>" --json
 openmail drafts get --draft-id "<draft-id>" --json
 openmail drafts send --draft-id "<draft-id>" --updated-at "<reviewed-updatedAt>" --json
 ```
 
-Choose the sending inbox when creating the draft. All content fields are optional. You can supply plain text, HTML, repeatable `--cc` and `--bcc`, and files via repeatable `--attach`. HTML can contain supported embedded or public remote images. For a local inline image, pass `--inline-image 'inline-<UUID>@openmail=./photo.png'` and reference the same ID with `cid:` in the HTML. Files and inline images share a 25 MiB limit.
+Choose the sending inbox when creating the draft. All content fields are optional. Body input is HTML only (`--body-html`); the API generates the plain-text fallback. You can also supply repeatable `--cc` and `--bcc`, and files via repeatable `--attach`. HTML can contain supported embedded or public remote images. For a local inline image, pass `--inline-image 'inline-<UUID>@openmail=./photo.png'` and reference the same ID with `cid:` in the HTML. Files and inline images share a 25 MiB limit.
 
 Use `--thread-id` to save a reply in a thread in the owning inbox. The API derives its reply subject. To associate a forward or new conversation with an existing thread, supply `--source-thread-id` alone with the message you want to send. Both appear on the source thread. List all accessible drafts or combine `--inbox-id`, `--pod-id`, `--source-thread-id`, and `--query`. Sending always uses the owning inbox. An optional `--inbox-id` on send must match it.
 
 Review the sending inbox, recipients, subject, full body, attachments and reply thread before sending. `drafts send` requires the exact `updatedAt` returned by `drafts get`, sends stored content, and removes the draft only on success. A stale version returns 409 and must be reviewed again; failed or pending sends retain it. The command does not fetch a newer version or retry a changed draft automatically.
 
-Use `drafts edit` with the exact `updatedAt` from `drafts get` to change recipients, subject or body without sending. Omitted fields are preserved. `--cc` and `--bcc` replace their lists; repeat each flag for multiple recipients. Use `--clear-to`, `--clear-cc` or `--clear-bcc` to clear recipients, and `--subject ""` or `--body ""` to clear content. `--body` is plain text and clears the old HTML unless you also supply `--body-html`. HTML edits require both flags so the two versions stay in sync. Attachments remain saved, except inline images removed from the replacement HTML. Editing cannot change the sending inbox or reply context. An optional `--inbox-id` checks ownership. Stale edits return 409 without retrying; get the current draft and reconcile the requested changes before another edit. Edits are blocked while a send is pending or accepted.
+Use `drafts edit` with the exact `updatedAt` from `drafts get` to change recipients, subject or body without sending. Omitted fields are preserved. `--cc` and `--bcc` replace their lists; repeat each flag for multiple recipients. Use `--clear-to`, `--clear-cc` or `--clear-bcc` to clear recipients, and `--subject ""` or `--body-html ""` to clear content. Both create and edit accept only `--body-html` for body content. The server generates the plain-text fallback; `--body` is rejected. Attachments remain saved, except inline images removed from the replacement HTML. Editing cannot change the sending inbox or reply context. An optional `--inbox-id` checks ownership. Stale edits return 409 without retrying; get the current draft and reconcile the requested changes before another edit. Edits are blocked while a send is pending or accepted.
 
 Requires the API from [OpenMail #663](https://github.com/openmailsh/openmail/pull/663), including the public draft-edit endpoint. Deploy the API before releasing this CLI change.

@@ -28,10 +28,9 @@ describe("draft commands", () => {
   });
 
   it.each([
-    { args: ["--body", "Revised"], fields: { bodyText: "Revised", bodyHtml: null } },
-    { args: ["--body", "Revised", "--body-html", "<p>Revised</p>"], fields: { bodyText: "Revised", bodyHtml: "<p>Revised</p>" } },
-    { args: ["--body", "", "--subject", "", "--clear-to", "--clear-cc", "--clear-bcc"], fields: { bodyText: "", bodyHtml: null, subject: "", to: null, cc: [], bcc: [] } },
-  ])("preserves explicit clears and replaces both body versions: $args", async ({ args, fields }) => {
+    { args: ["--body-html", "<p>Revised</p>"], fields: { bodyHtml: "<p>Revised</p>" } },
+    { args: ["--body-html", "", "--subject", "", "--clear-to", "--clear-cc", "--clear-bcc"], fields: { bodyHtml: "", subject: "", to: null, cc: [], bcc: [] } },
+  ])("preserves explicit clears and submits HTML only: $args", async ({ args, fields }) => {
     const fetch = vi.fn().mockResolvedValue(new Response("{}"));
     vi.stubGlobal("fetch", fetch);
     await run(["edit", "--draft-id", "d", "--updated-at", version, ...args]);
@@ -41,28 +40,28 @@ describe("draft commands", () => {
   it("does not refresh or retry a conflicting edit", async () => {
     const fetch = vi.fn().mockResolvedValue(new Response(JSON.stringify({ error: "draft_changed" }), { status: 409 }));
     vi.stubGlobal("fetch", fetch);
-    await expect(run(["edit", "--draft-id", "d", "--updated-at", version, "--body", "Revised"]))
+    await expect(run(["edit", "--draft-id", "d", "--updated-at", version, "--body-html", "<p>Revised</p>"]))
       .rejects.toMatchObject({ status: 409, message: expect.stringContaining("reconcile the requested changes") });
     expect(fetch).toHaveBeenCalledTimes(1);
     expect(fetch.mock.calls[0][1].method).toBe("PATCH");
   });
 
   it.each([
-    [], ["--body-html", "<p>Missing plain text</p>"], ["--body"], ["--cc"],
+    [], ["--body-html"], ["--body", "Plain"], ["--cc"],
     ["--to", "a@example.com", "--clear-to"], ["--cc", "a@example.com", "--clear-cc"],
-    ["--clear-bcc=false"], ["--thread-id", "different"], ["--body", "one", "--body", "two"],
+    ["--clear-bcc=false"], ["--thread-id", "different"], ["--body-html", "one", "--body-html", "two"],
   ])("rejects invalid edits before making requests: %j", async (...args) => {
     const fetch = vi.fn();
     vi.stubGlobal("fetch", fetch);
     await expect(run(["edit", "--draft-id", "d", "--updated-at", version, ...args])).rejects.toThrow();
     expect(fetch).not.toHaveBeenCalled();
   });
-  it("saves incomplete drafts and preserves To/Cc/Bcc, plain text and HTML without sending", async () => {
+  it("saves incomplete drafts and preserves To/Cc/Bcc and HTML without sending", async () => {
     const fetch = vi.fn().mockResolvedValue(new Response(JSON.stringify({ id: "draft-1" })));
     vi.stubGlobal("fetch", fetch);
-    await run(["create", "--inbox-id", "inbox-1", "--to", "a@example.com", "--cc", "b@example.com", "--cc=c@example.com", "--bcc", "d@example.com", "--body", " Plain ", "--body-html", "<p>HTML</p>"]);
+    await run(["create", "--inbox-id", "inbox-1", "--to", "a@example.com", "--cc", "b@example.com", "--cc=c@example.com", "--bcc", "d@example.com", "--body-html", "<p>HTML</p>"]);
     expect(fetch.mock.calls[0][0]).toBe("https://example.invalid/v1/drafts");
-    expect(JSON.parse(fetch.mock.calls[0][1].body)).toEqual({ inboxId: "inbox-1", to: "a@example.com", cc: ["b@example.com", "c@example.com"], bcc: ["d@example.com"], body: " Plain ", bodyHtml: "<p>HTML</p>" });
+    expect(JSON.parse(fetch.mock.calls[0][1].body)).toEqual({ inboxId: "inbox-1", to: "a@example.com", cc: ["b@example.com", "c@example.com"], bcc: ["d@example.com"], bodyHtml: "<p>HTML</p>" });
     fetch.mockResolvedValue(new Response("{}"));
     await run(["create", "--inbox-id", "inbox-1"]);
     expect(JSON.parse(fetch.mock.calls[1][1].body)).toEqual({ inboxId: "inbox-1" });
@@ -131,6 +130,7 @@ describe("draft commands", () => {
   it.each([
     ["send", "--draft-id", "d"], ["send", "--draft-id", "d", "--updated-at", "invalid"],
     ["send", "--draft-id", "d", "--updated-at", version, "--to", "changed@example.com"],
+    ["create", "--inbox-id", "in", "--body", "Plain"],
     ["create"], ["create", "--inbox-id"], ["create", "--inbox-id", "in", "--attach"],
     ["create", "--inbox-id", "in", "--inline-image", "invalid.png"],
     ["create", "--inbox-id", "in", "--to", "a@example.com", "--to", "b@example.com"],

@@ -10,8 +10,8 @@ import {
 
 describe("parseArgs", () => {
   it("distinguishes an explicit empty value from a missing value", () => {
-    expect(parseArgs(["drafts", "edit", "--subject", "", "--body=", "--json"]).flags)
-      .toEqual({ subject: "", body: "", json: true });
+    expect(parseArgs(["drafts", "edit", "--subject", "", "--body-html=", "--json"]).flags)
+      .toEqual({ subject: "", "body-html": "", json: true });
   });
   it("parses command tokens and mixed flags", () => {
     const parsed = parseArgs([
