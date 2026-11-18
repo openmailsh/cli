@@ -164,6 +164,8 @@ Bug reports, feature requests, and pull requests are welcome. See [CONTRIBUTING.
 openmail drafts create --inbox-id "<inbox-id>" --to reader@example.com --subject "Proposal" --body "Please review." --attach proposal.pdf --json
 openmail drafts list --pod-id "<pod-id>" --inbox-id "<inbox-id>" --query Proposal --limit 20 --offset 0 --json
 openmail drafts get --draft-id "<draft-id>" --json
+openmail drafts edit --draft-id "<draft-id>" --updated-at "<current-updatedAt>" --body "Revised proposal." --json
+openmail drafts get --draft-id "<draft-id>" --json
 openmail drafts send --draft-id "<draft-id>" --updated-at "<reviewed-updatedAt>" --json
 ```
 
@@ -173,4 +175,6 @@ Use `--thread-id` to save a reply in a thread in the owning inbox. The API deriv
 
 Review the sending inbox, recipients, subject, full body, attachments and reply thread before sending. `drafts send` requires the exact `updatedAt` returned by `drafts get`, sends stored content, and removes the draft only on success. A stale version returns 409 and must be reviewed again; failed or pending sends retain it. The command does not fetch a newer version or retry a changed draft automatically.
 
-Requires the API from [OpenMail #662](https://github.com/openmailsh/openmail/pull/662).
+Use `drafts edit` with the exact `updatedAt` from `drafts get` to change recipients, subject or body without sending. Omitted fields are preserved. `--cc` and `--bcc` replace their lists; repeat each flag for multiple recipients. Use `--clear-to`, `--clear-cc` or `--clear-bcc` to clear recipients, and `--subject ""` or `--body ""` to clear content. `--body` is plain text and clears the old HTML unless you also supply `--body-html`. HTML edits require both flags so the two versions stay in sync. Attachments remain saved, except inline images removed from the replacement HTML. Editing cannot change the sending inbox or reply context. An optional `--inbox-id` checks ownership. Stale edits return 409 without retrying; get the current draft and reconcile the requested changes before another edit. Edits are blocked while a send is pending or accepted.
+
+Requires the API from [OpenMail #663](https://github.com/openmailsh/openmail/pull/663), including the public draft-edit endpoint. Deploy the API before releasing this CLI change.

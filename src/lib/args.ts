@@ -36,7 +36,7 @@ export function parseArgs(argv: string[]): ParsedArgs {
 
     const key = withoutPrefix;
     const maybeValue = argv[i + 1];
-    if (maybeValue && !maybeValue.startsWith("--")) {
+    if (maybeValue !== undefined && !maybeValue.startsWith("--")) {
       flags[key] = maybeValue;
       i += 2;
       continue;

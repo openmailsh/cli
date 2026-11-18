@@ -16,6 +16,47 @@ function run(args: string[]) {
 afterEach(() => { vi.restoreAllMocks(); vi.unstubAllGlobals(); });
 
 describe("draft commands", () => {
+  it("edits only supplied fields with the exact version and never sends", async () => {
+    const fetch = vi.fn().mockResolvedValue(new Response(JSON.stringify({ id: "d/1", updatedAt: "2026-11-18T10:00:00.000Z" })));
+    vi.stubGlobal("fetch", fetch);
+    const result = await run(["edit", "--draft-id", "d/1", "--updated-at", version, "--inbox-id", "in", "--subject", "Revised", "--cc", "a@example.com", "--cc", "b@example.com"]);
+    expect(result).toMatchObject({ id: "d/1", updatedAt: "2026-11-18T10:00:00.000Z" });
+    expect(fetch).toHaveBeenCalledTimes(1);
+    expect(fetch.mock.calls[0][0]).toBe("https://example.invalid/v1/drafts/d%2F1");
+    expect(fetch.mock.calls[0][1].method).toBe("PATCH");
+    expect(JSON.parse(fetch.mock.calls[0][1].body)).toEqual({ updatedAt: version, inboxId: "in", subject: "Revised", cc: ["a@example.com", "b@example.com"] });
+  });
+
+  it.each([
+    { args: ["--body", "Revised"], fields: { bodyText: "Revised", bodyHtml: null } },
+    { args: ["--body", "Revised", "--body-html", "<p>Revised</p>"], fields: { bodyText: "Revised", bodyHtml: "<p>Revised</p>" } },
+    { args: ["--body", "", "--subject", "", "--clear-to", "--clear-cc", "--clear-bcc"], fields: { bodyText: "", bodyHtml: null, subject: "", to: null, cc: [], bcc: [] } },
+  ])("preserves explicit clears and replaces both body versions: $args", async ({ args, fields }) => {
+    const fetch = vi.fn().mockResolvedValue(new Response("{}"));
+    vi.stubGlobal("fetch", fetch);
+    await run(["edit", "--draft-id", "d", "--updated-at", version, ...args]);
+    expect(JSON.parse(fetch.mock.calls[0][1].body)).toEqual({ updatedAt: version, ...fields });
+  });
+
+  it("does not refresh or retry a conflicting edit", async () => {
+    const fetch = vi.fn().mockResolvedValue(new Response(JSON.stringify({ error: "draft_changed" }), { status: 409 }));
+    vi.stubGlobal("fetch", fetch);
+    await expect(run(["edit", "--draft-id", "d", "--updated-at", version, "--body", "Revised"]))
+      .rejects.toMatchObject({ status: 409, message: expect.stringContaining("reconcile the requested changes") });
+    expect(fetch).toHaveBeenCalledTimes(1);
+    expect(fetch.mock.calls[0][1].method).toBe("PATCH");
+  });
+
+  it.each([
+    [], ["--body-html", "<p>Missing plain text</p>"], ["--body"], ["--cc"],
+    ["--to", "a@example.com", "--clear-to"], ["--cc", "a@example.com", "--clear-cc"],
+    ["--clear-bcc=false"], ["--thread-id", "different"], ["--body", "one", "--body", "two"],
+  ])("rejects invalid edits before making requests: %j", async (...args) => {
+    const fetch = vi.fn();
+    vi.stubGlobal("fetch", fetch);
+    await expect(run(["edit", "--draft-id", "d", "--updated-at", version, ...args])).rejects.toThrow();
+    expect(fetch).not.toHaveBeenCalled();
+  });
   it("saves incomplete drafts and preserves To/Cc/Bcc, plain text and HTML without sending", async () => {
     const fetch = vi.fn().mockResolvedValue(new Response(JSON.stringify({ id: "draft-1" })));
     vi.stubGlobal("fetch", fetch);

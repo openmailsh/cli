@@ -9,6 +9,10 @@ import {
 } from "../args";
 
 describe("parseArgs", () => {
+  it("distinguishes an explicit empty value from a missing value", () => {
+    expect(parseArgs(["drafts", "edit", "--subject", "", "--body=", "--json"]).flags)
+      .toEqual({ subject: "", body: "", json: true });
+  });
   it("parses command tokens and mixed flags", () => {
     const parsed = parseArgs([
       "inbox",
