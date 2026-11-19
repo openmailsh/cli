@@ -37,6 +37,13 @@ describe("describeHttpError", () => {
 });
 
 describe("OpenMailHttpClient errors", () => {
+  it("reads the original UTF-8 filename from an attachment response", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => new Response("file", {
+      headers: { "Content-Disposition": "attachment; filename=\"s_skaita.pdf\"; filename*=UTF-8''s%C4%85skaita.pdf" },
+    })));
+    expect((await client().download("/v1/attachments/msg/id")).filename).toBe("sąskaita.pdf");
+  });
+
   it("identifies itself to the API on every request", async () => {
     const fetchMock = vi.fn(async () => new Response("[]", { status: 200 }));
     vi.stubGlobal("fetch", fetchMock);

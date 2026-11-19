@@ -5,7 +5,7 @@ import { getStringFlag } from "../lib/args";
 import type { OpenMailHttpClient } from "../lib/http";
 
 /**
- * `attachments get|text --message-id <id> --filename <name>`. `text` is the
+ * `attachments get|text --message-id <id> --attachment-id <id>`. `text` is the
  * one agents usually want: the API extracts plain text from PDF, DOCX, XLSX,
  * PPTX and images (OCR) so the agent never has to parse a binary itself.
  * `get` downloads the raw file to --out (default: the attachment's filename
@@ -17,23 +17,31 @@ export async function runAttachmentsCommand(client: OpenMailHttpClient, parsed: 
     throw new Error("missing attachments action (get|text)");
   }
   const messageId = getStringFlag(parsed.flags, "message-id");
+  const attachmentId = getStringFlag(parsed.flags, "attachment-id");
   const filename = getStringFlag(parsed.flags, "filename");
   if (!messageId) {
     throw new Error("missing --message-id");
   }
-  if (!filename) {
-    throw new Error("missing --filename");
+  const selector = attachmentId || filename;
+  if (!selector) {
+    throw new Error("missing --attachment-id (use attachments[].id from threads get or messages list)");
   }
-  const base = `/v1/attachments/${encodeURIComponent(messageId)}/${encodeURIComponent(filename)}`;
+  const base = `/v1/attachments/${encodeURIComponent(messageId)}/${encodeURIComponent(selector)}`;
 
   if (action === "text") {
     return client.get(`${base}/text`);
   }
 
   if (action === "get") {
-    const out = getStringFlag(parsed.flags, "out") ?? path.basename(filename);
-    const { bytes, contentType } = await client.download(base);
-    await writeFile(out, bytes);
+    const output = getStringFlag(parsed.flags, "out");
+    const { bytes, contentType, filename: storedName } = await client.download(base);
+    const out = output ?? path.win32.basename((attachmentId && storedName) || selector);
+    if (!output && (!out || out === "." || out === ".." || out.includes("\0"))) {
+      throw new Error("Pass --out to choose a filename for this attachment.");
+    }
+    // Two IDs can have the same suggested filename. Preserve an existing file
+    // unless the user picked its path or used the original filename command.
+    await writeFile(out, bytes, { flag: attachmentId && !output ? "wx" : "w" });
     return { ok: true, path: path.resolve(out), bytes: bytes.byteLength, contentType };
   }
 
