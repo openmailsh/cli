@@ -6,6 +6,17 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Thi
 
 ---
 
+## [0.9.1]
+
+### Added
+
+- `openmail drafts edit` revises saved recipients, subject or HTML using the exact `updatedAt` from `drafts get`. Omitted fields are preserved; explicit clears are supported.
+- `openmail drafts delete` permanently discards a saved draft and its attachments using its exact `updatedAt`. Stale versions and pending or accepted sends block deletion; the command never fetches a newer version or retries automatically.
+
+### Changed
+
+- Draft creation and editing accept only `--body-html` for body content. Replace draft `--body` arguments with HTML; the API generates the plain-text fallback. This changes the draft creation interface from 0.9.0.
+
 ## [0.9.0]
 
 ### Added
