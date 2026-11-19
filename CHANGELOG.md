@@ -6,6 +6,12 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Thi
 
 ---
 
+## [0.9.2]
+
+### Fixed
+
+- Use `attachments[].id` from `threads get` or `messages list` with `attachments get` and `attachments text` to select files that share a filename. ID-based downloads use the original filename by default and preserve an existing local file unless you specify `--out`.
+
 ## [0.9.1]
 
 ### Added

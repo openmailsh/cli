@@ -87,8 +87,10 @@ openmail attachments text --message-id msg_xxx --attachment-id "$ATTACHMENT_ID"
 openmail attachments get --message-id msg_xxx --attachment-id "$ATTACHMENT_ID" --out ./second-report.pdf
 ```
 
-Use the attachment's `id` from the message to select a particular file. The legacy
-`--filename report.pdf` selects the first matching name. Downloading by ID uses
+Use `threads get --thread-id <id> --json` or `messages list --json` to find the
+message's `id` and the selected file's `attachments[].id`. Pass them as `--message-id`
+and `--attachment-id`. For an older message without IDs, `--filename` selects
+the first matching name. Downloading by ID uses
 the stored filename by default. If that file already exists, choose a path with `--out`.
 
 ### Pods and scoped keys

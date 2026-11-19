@@ -24,7 +24,7 @@ export async function runAttachmentsCommand(client: OpenMailHttpClient, parsed: 
   }
   const selector = attachmentId || filename;
   if (!selector) {
-    throw new Error("missing --attachment-id or --filename");
+    throw new Error("missing --attachment-id (use attachments[].id from threads get or messages list)");
   }
   const base = `/v1/attachments/${encodeURIComponent(messageId)}/${encodeURIComponent(selector)}`;
 

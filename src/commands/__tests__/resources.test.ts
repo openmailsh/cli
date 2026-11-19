@@ -3,6 +3,7 @@ import { readFile, rm } from "node:fs/promises";
 import { describe, expect, it, vi } from "vitest";
 import { parseArgs } from "../../lib/args";
 import type { OpenMailHttpClient } from "../../lib/http";
+import { printData } from "../../lib/output";
 import { runPodCommand } from "../pod";
 import { runDomainCommand } from "../domain";
 import { runPolicyCommand } from "../policy";
@@ -148,6 +149,28 @@ describe("policy", () => {
 });
 
 describe("attachments", () => {
+  it("prints both attachment IDs in thread and inbox message listings", async () => {
+    const { client } = fakeClient();
+    const message = { id: "msg", attachments: [
+      { id: "first", filename: "report.pdf" }, { id: "second", filename: "report.pdf" },
+    ] };
+    client.get = vi.fn().mockResolvedValue({ data: [message] });
+    const results = [
+      await runThreadsCommand(client, parseArgs(["threads", "get", "--thread-id", "thread"])),
+      await runMessagesCommand(client, parseArgs(["messages", "list", "--inbox-id", "inbox"])),
+    ];
+    const stdout = vi.spyOn(process.stdout, "write").mockImplementation(() => true);
+    try {
+      for (const result of results) {
+        printData({ output: "json", verbose: false }, result);
+        const [line] = stdout.mock.lastCall!;
+        expect(JSON.parse(String(line)).data[0]).toEqual(message);
+      }
+    } finally {
+      stdout.mockRestore();
+    }
+  });
+
   it("text hits the /text endpoint with encoded segments", async () => {
     const { client, calls } = fakeClient();
     await runAttachmentsCommand(
@@ -187,7 +210,7 @@ describe("attachments", () => {
     ).rejects.toThrow("missing --message-id");
     await expect(
       runAttachmentsCommand(client, parseArgs(["attachments", "text", "--message-id", "m"])),
-    ).rejects.toThrow("missing --attachment-id or --filename");
+    ).rejects.toThrow("missing --attachment-id");
   });
 });
 
