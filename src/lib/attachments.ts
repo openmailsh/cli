@@ -27,6 +27,17 @@ function getMimeType(filename: string): string {
   return MIME_TYPES[ext] || "application/octet-stream";
 }
 
+/** OpenMail sends the original UTF-8 name in the final filename* parameter. */
+export function attachmentFilename(disposition: string | null): string | undefined {
+  const encoded = disposition?.match(/;\s*filename\*=UTF-8''([^;]+)$/i)?.[1];
+  if (!encoded) return undefined;
+  try {
+    return decodeURIComponent(encoded);
+  } catch {
+    return undefined;
+  }
+}
+
 export async function resolveAttachment(raw: string) {
   const path = resolve(raw);
   try {

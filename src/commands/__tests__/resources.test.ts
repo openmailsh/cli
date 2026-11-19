@@ -1,4 +1,6 @@
-import { describe, expect, it } from "vitest";
+import { randomUUID } from "node:crypto";
+import { readFile, rm } from "node:fs/promises";
+import { describe, expect, it, vi } from "vitest";
 import { parseArgs } from "../../lib/args";
 import type { OpenMailHttpClient } from "../../lib/http";
 import { runPodCommand } from "../pod";
@@ -155,14 +157,37 @@ describe("attachments", () => {
     expect(calls[0].path).toBe("/v1/attachments/msg_1/my%20report.pdf/text");
   });
 
-  it("requires --message-id and --filename", async () => {
+  it("selects by ID and preserves a previously downloaded file with the same name", async () => {
+    const { client, calls } = fakeClient();
+    const name = `report-${randomUUID()}.pdf`;
+    client.download = vi.fn(async (path: string) => ({
+      bytes: Buffer.from(path.endsWith("/second") ? "second file" : "first file"),
+      contentType: "application/pdf", filename: name,
+    }));
+    const args = (command: string, id: string, ...flags: string[]) =>
+      parseArgs(["attachments", command, "--message-id", "msg", "--attachment-id", id, ...flags]);
+    try {
+      await runAttachmentsCommand(client, args("get", "first"));
+      await expect(runAttachmentsCommand(client, args("get", "second"))).rejects.toMatchObject({ code: "EEXIST" });
+      await runAttachmentsCommand(client, args("get", "second", "--out", name + ".copy"));
+      expect(await readFile(name, "utf8")).toBe("first file");
+      expect(await readFile(name + ".copy", "utf8")).toBe("second file");
+      await runAttachmentsCommand(client, args("text", "second"));
+      expect(calls[0].path).toBe("/v1/attachments/msg/second/text");
+    } finally {
+      await rm(name, { force: true });
+      await rm(name + ".copy", { force: true });
+    }
+  });
+
+  it("requires a message and an attachment selector", async () => {
     const { client } = fakeClient();
     await expect(
       runAttachmentsCommand(client, parseArgs(["attachments", "text", "--filename", "a.pdf"])),
     ).rejects.toThrow("missing --message-id");
     await expect(
       runAttachmentsCommand(client, parseArgs(["attachments", "text", "--message-id", "m"])),
-    ).rejects.toThrow("missing --filename");
+    ).rejects.toThrow("missing --attachment-id or --filename");
   });
 });
 

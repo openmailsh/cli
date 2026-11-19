@@ -1,6 +1,7 @@
 import crypto from "node:crypto";
 import { version } from "../../package.json";
 import { proxyAwareFetch, proxyFromEnv } from "./fetch";
+import { attachmentFilename } from "./attachments";
 
 // Lets the API attribute usage to the CLI (`api_keys.lastClient`,
 // `inboxes.createdVia`). Keep both in sync with `lib/api-client.ts` in the API.
@@ -97,7 +98,7 @@ export class OpenMailHttpClient {
   }
 
   /** GET a binary response (attachments) as raw bytes. */
-  async download(path: string): Promise<{ bytes: Buffer; contentType: string | null }> {
+  async download(path: string) {
     const url = `${this.baseUrl}${path}`;
     const response = await proxyAwareFetch(url, {
       method: "GET",
@@ -111,6 +112,7 @@ export class OpenMailHttpClient {
     return {
       bytes: Buffer.from(await response.arrayBuffer()),
       contentType: response.headers.get("content-type"),
+      filename: attachmentFilename(response.headers.get("content-disposition")),
     };
   }
 
