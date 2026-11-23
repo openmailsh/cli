@@ -10,6 +10,7 @@ import { runPolicyCommand } from "../policy";
 import { runAttachmentsCommand } from "../attachments";
 import { runThreadsCommand } from "../threads";
 import { runMessagesCommand } from "../messages";
+import { runScheduledCommand } from "../scheduled";
 
 type Call = { method: string; path: string; body?: unknown; query?: unknown };
 
@@ -211,6 +212,57 @@ describe("attachments", () => {
     await expect(
       runAttachmentsCommand(client, parseArgs(["attachments", "text", "--message-id", "m"])),
     ).rejects.toThrow("missing --attachment-id");
+  });
+});
+
+describe("scheduled", () => {
+  it("maps list, reschedule, and cancel onto scheduled-sends", async () => {
+    const { client, calls } = fakeClient();
+    const run = (argv: string[]) =>
+      runScheduledCommand(client, parseArgs(argv), "inb_1");
+    await run(["scheduled", "list", "--status", "scheduled,failed"]);
+    await run([
+      "scheduled",
+      "reschedule",
+      "--send-id",
+      "snd 1",
+      "--send-at",
+      "2026-11-24T06:00:00Z",
+    ]);
+    await run(["scheduled", "cancel", "--send-id", "snd 1"]);
+    expect(calls).toEqual([
+      {
+        method: "GET",
+        path: "/v1/inboxes/inb_1/scheduled-sends",
+        query: { status: "scheduled,failed" },
+      },
+      {
+        method: "PATCH",
+        path: "/v1/inboxes/inb_1/scheduled-sends/snd%201",
+        body: { sendAt: "2026-11-24T06:00:00Z" },
+      },
+      { method: "DELETE", path: "/v1/inboxes/inb_1/scheduled-sends/snd%201" },
+    ]);
+  });
+
+  it("requires the inbox, the action, and the flags", async () => {
+    const { client } = fakeClient();
+    await expect(runScheduledCommand(client, parseArgs(["scheduled", "list"]))).rejects.toThrow(
+      "missing inbox id",
+    );
+    await expect(
+      runScheduledCommand(client, parseArgs(["scheduled"]), "inb_1"),
+    ).rejects.toThrow("missing scheduled action");
+    await expect(
+      runScheduledCommand(client, parseArgs(["scheduled", "cancel"]), "inb_1"),
+    ).rejects.toThrow("missing --send-id");
+    await expect(
+      runScheduledCommand(
+        client,
+        parseArgs(["scheduled", "reschedule", "--send-id", "snd_1"]),
+        "inb_1",
+      ),
+    ).rejects.toThrow("missing --send-at");
   });
 });
 

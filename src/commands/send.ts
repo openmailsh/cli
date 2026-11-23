@@ -24,6 +24,7 @@ export async function runSendCommand(
   const noQuote = getBooleanFlag(parsed.flags, "no-quote");
   const idempotencyKey = getStringFlag(parsed.flags, "idempotency-key");
   const replyTo = getStringFlag(parsed.flags, "reply-to");
+  const sendAt = getStringFlag(parsed.flags, "send-at");
   const attachPaths = getRepeatedStringFlag("attach");
 
   if (!inboxId) throw new Error("missing inbox id; run `openmail init` or pass --inbox-id");
@@ -52,6 +53,7 @@ export async function runSendCommand(
     includeQuote: noQuote ? false : undefined,
     idempotencyKey,
     replyTo,
+    sendAt,
     attachments,
   });
 }
