@@ -11,6 +11,7 @@ import { runMessagesCommand } from "./commands/messages";
 import { runThreadsCommand } from "./commands/threads";
 import { runDraftsCommand } from "./commands/drafts";
 import { runSendCommand } from "./commands/send";
+import { runScheduledCommand } from "./commands/scheduled";
 import { runInitCommand } from "./commands/init";
 import { ctxFromConfig, resolveGlobalConfig } from "./lib/config";
 import { readCliState } from "./lib/state";
@@ -93,6 +94,7 @@ async function main() {
     "attachments",
     "send",
     "drafts",
+    "scheduled",
     "messages",
     "threads",
     "feedback",
@@ -141,6 +143,14 @@ async function main() {
     output = await runSendCommand(client, parsed, inboxId);
   } else if (command === "drafts") {
     output = await runDraftsCommand(client, parsed);
+  } else if (command === "scheduled") {
+    const inboxId = await resolveInboxIdWithFallback({
+      client,
+      parsed,
+      statePath: globalConfig.statePath,
+      ctx,
+    });
+    output = await runScheduledCommand(client, parsed, inboxId);
   } else if (command === "messages") {
     // Only `list` is inbox-scoped; `delete` takes a message id and must not
     // trip the inbox fallback (which can prompt or fail on a fresh install).
@@ -222,8 +232,9 @@ function printHelp(topic?: string) {
         "  pod        Manage pods and pod API keys",
         "  domain     Manage custom sending domains",
         "  policy     Correspondent policy: who may email an inbox, who it may email",
-        "  send       Send an email",
+        "  send       Send an email, or hold it until a time with --send-at",
         "  drafts     Create, list, review, edit, send and delete saved drafts",
+        "  scheduled  List, reschedule, or cancel a held send",
         "  messages   List/delete messages for an inbox",
         "  threads    List/get/delete threads",
         "  attachments  Download or extract text from an attachment",
@@ -414,6 +425,7 @@ function printHelp(topic?: string) {
         "  send --to <email> --subject <text> --body <text> [--inbox-id <id>]  (--subject optional with --thread-id)",
         "       [--cc <email>] [--bcc <email>] [--thread-id <id>] [--no-quote]",
         "       [--idempotency-key <key>] [--reply-to <email>] [--attach <file>]",
+        "       [--send-at <iso-8601>]",
         "",
         "Options:",
         "  --to <email>        Single primary recipient (may only be given once)",
@@ -426,6 +438,8 @@ function printHelp(topic?: string) {
         "  --reply-to <email>  Address replies should go to. Free plan: must be the",
         "                      address of an inbox you own. Pro+: any address.",
         "  --attach <file>     Attach a file (repeatable for multiple files)",
+        "  --send-at <time>   Hold the email until this ISO-8601 time (30 seconds",
+        "                     to 30 days ahead). The response is the scheduled send.",
         "",
         "Examples:",
         "  openmail send --to user@example.com --subject Hi --body Hello",
@@ -435,6 +449,32 @@ function printHelp(topic?: string) {
         "  openmail send --to user@example.com --subject Hi --body Hello --attach report.pdf",
         "  openmail send --to user@example.com --subject Hi --body Hello --attach a.pdf --attach b.png",
         "  openmail send --to user@example.com --subject Hi --body Hello --reply-to support@yourdomain.com",
+        "  openmail send --to user@example.com --subject Hi --body Hello --send-at 2026-11-24T06:00:00Z",
+        "",
+        ...globalFlags,
+      ].join("\n"),
+    );
+    return;
+  }
+
+  if (usage === "scheduled") {
+    process.stdout.write(
+      [
+        "openmail scheduled",
+        "",
+        "Subcommands:",
+        "  list [--status <list>] [--inbox-id <id>]",
+        "  reschedule --send-id <id> --send-at <iso-8601> [--inbox-id <id>]",
+        "  cancel --send-id <id> [--inbox-id <id>]",
+        "",
+        "list defaults to emails that have not gone out. --status is a comma-separated",
+        "list (scheduled, failed, cancelled, sending, sent). reschedule changes the",
+        "time only. cancel stops a send that has not gone out.",
+        "",
+        "Examples:",
+        "  openmail scheduled list",
+        "  openmail scheduled reschedule --send-id 9f3a1b2c-0000-4000-8000-000000000001 --send-at 2026-11-24T06:00:00Z",
+        "  openmail scheduled cancel --send-id 9f3a1b2c-0000-4000-8000-000000000001",
         "",
         ...globalFlags,
       ].join("\n"),

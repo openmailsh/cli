@@ -72,6 +72,14 @@ openmail send --to hello@example.com --bcc crm@hubspot.example \
 openmail send --to hello@example.com --subject "Hi" --body "Hello" \
   --reply-to support@yourdomain.com
 
+# Hold a send until a time (ISO-8601, 30 seconds to 30 days ahead)
+openmail send --to hello@example.com --subject "Hi" --body "Hello" \
+  --send-at 2026-11-24T06:00:00Z
+openmail scheduled list
+openmail scheduled reschedule --send-id 9f3a1b2c-0000-4000-8000-000000000001 \
+  --send-at 2026-11-25T06:00:00Z
+openmail scheduled cancel --send-id 9f3a1b2c-0000-4000-8000-000000000001
+
 # List messages and threads
 openmail messages list [--direction inbound|outbound]
 openmail threads list

@@ -6,6 +6,13 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Thi
 
 ---
 
+## [0.10.0]
+
+### Added
+
+- `openmail send --send-at <iso-8601>` holds an email until that time (30 seconds to 30 days ahead) instead of sending it now.
+- `openmail scheduled list`, `reschedule`, and `cancel` manage a held send. Reschedule changes the time only.
+
 ## [0.9.2]
 
 ### Fixed
