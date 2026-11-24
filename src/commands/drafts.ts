@@ -1,7 +1,7 @@
 import { openAsBlob } from "node:fs";
 import { resolveAttachment } from "../lib/attachments";
 import type { ParsedArgs } from "../lib/args";
-import { countFlagOccurrences, getRepeatedStringFlag, getStringFlag } from "../lib/args";
+import { countFlagOccurrences, getRepeatedStringFlag, getStringFlag, getToFlag } from "../lib/args";
 import { ApiError, type OpenMailHttpClient } from "../lib/http";
 
 const globalFlags = ["api-key", "base-url", "state-path", "json", "verbose"];
@@ -20,9 +20,9 @@ function optionalId(parsed: ParsedArgs, flag: string) {
   return value;
 }
 
-function repeatedValues(flag: string) {
-  const values = getRepeatedStringFlag(flag);
-  if (values.length !== countFlagOccurrences(flag) || values.some(value => !value.trim())) {
+function repeatedValues(flag: string, argv: string[]) {
+  const values = getRepeatedStringFlag(flag, argv);
+  if (values.length !== countFlagOccurrences(flag, argv) || values.some(value => !value.trim())) {
     throw new Error(`--${flag} requires a value each time it is used`);
   }
   return values;
@@ -30,11 +30,11 @@ function repeatedValues(flag: string) {
 
 function draftEdits(parsed: ParsedArgs) {
   const fields: Record<string, string | string[] | null> = {};
-  for (const [flag, field] of [["to", "to"], ["subject", "subject"], ["body-html", "bodyHtml"]]) {
+  for (const [flag, field] of [["subject", "subject"], ["body-html", "bodyHtml"]]) {
     if (!(flag in parsed.flags)) continue;
     const value = parsed.flags[flag];
     if (typeof value !== "string") throw new Error(`--${flag} requires a value`);
-    if (countFlagOccurrences(flag) > 1) throw new Error(`--${flag} may only be given once`);
+    if (countFlagOccurrences(flag, parsed.argv) > 1) throw new Error(`--${flag} may only be given once`);
     fields[field] = value;
   }
   for (const flag of ["to", "cc", "bcc"]) {
@@ -43,17 +43,20 @@ function draftEdits(parsed: ParsedArgs) {
       if (parsed.flags[clear] !== true) throw new Error(`--${clear} does not take a value`);
       if (flag in parsed.flags) throw new Error(`Use either --${flag} or --${clear}`);
       fields[flag] = flag === "to" ? null : [];
-    } else if (flag !== "to" && flag in parsed.flags) {
-      fields[flag] = repeatedValues(flag);
+    } else if (flag === "to") {
+      const to = getToFlag(parsed);
+      if (to !== undefined) fields.to = to;
+    } else if (flag in parsed.flags) {
+      fields[flag] = repeatedValues(flag, parsed.argv);
     }
   }
   if (!Object.keys(fields).length) throw new Error("drafts edit requires at least one content change");
   return fields;
 }
 
-async function draftRequestBody(fields: Record<string, string | string[]>) {
-  const files = repeatedValues("attach").map(path => ({ field: "attachments", path, contentId: "" }));
-  for (const value of repeatedValues("inline-image")) {
+async function draftRequestBody(fields: Record<string, string | string[]>, argv: string[]) {
+  const files = repeatedValues("attach", argv).map(path => ({ field: "attachments", path, contentId: "" }));
+  for (const value of repeatedValues("inline-image", argv)) {
     const separator = value.indexOf("=");
     const contentId = value.slice(0, separator);
     const path = value.slice(separator + 1);
@@ -67,6 +70,10 @@ async function draftRequestBody(fields: Record<string, string | string[]>) {
 
   const form = new FormData();
   for (const [key, value] of Object.entries(fields)) {
+    if (key === "to" && Array.isArray(value)) {
+      form.append(key, JSON.stringify(value));
+      continue;
+    }
     for (const item of Array.isArray(value) ? value : [value]) form.append(key, item);
   }
   let totalBytes = 0;
@@ -95,8 +102,9 @@ export async function runDraftsCommand(client: OpenMailHttpClient, parsed: Parse
 
   if (action === "create") {
     if (!inboxId) throw new Error("drafts create requires --inbox-id for the sending inbox");
-    if (countFlagOccurrences("to") > 1) throw new Error("--to may only be given once; use --cc or --bcc for additional recipients");
     const body: Record<string, string | string[]> = { inboxId };
+    const to = getToFlag(parsed);
+    if (to !== undefined) body.to = to;
     const threadId = optionalId(parsed, "thread-id");
     const sourceThreadId = optionalId(parsed, "source-thread-id");
     if (threadId && sourceThreadId && threadId !== sourceThreadId) {
@@ -104,7 +112,7 @@ export async function runDraftsCommand(client: OpenMailHttpClient, parsed: Parse
     }
     if (threadId) body.threadId = threadId;
     if (sourceThreadId) body.sourceThreadId = sourceThreadId;
-    for (const [flag, field] of [["to", "to"], ["subject", "subject"], ["body-html", "bodyHtml"]]) {
+    for (const [flag, field] of [["subject", "subject"], ["body-html", "bodyHtml"]]) {
       const value = parsed.flags[flag];
       if (value !== undefined) {
         if (typeof value !== "string") throw new Error(`--${flag} requires a value`);
@@ -112,10 +120,10 @@ export async function runDraftsCommand(client: OpenMailHttpClient, parsed: Parse
       }
     }
     for (const flag of ["cc", "bcc"]) {
-      const values = repeatedValues(flag);
+      const values = repeatedValues(flag, parsed.argv);
       if (values.length) body[flag] = values;
     }
-    return client.post(path, await draftRequestBody(body));
+    return client.post(path, await draftRequestBody(body, parsed.argv));
   }
   if (action === "list") {
     const pagination: Record<string, number> = {};

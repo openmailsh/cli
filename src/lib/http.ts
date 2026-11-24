@@ -118,7 +118,7 @@ export class OpenMailHttpClient {
 
   async sendEmail(params: {
     inboxId: string;
-    to: string;
+    to: string | string[];
     cc?: string[];
     bcc?: string[];
     subject?: string;
@@ -137,7 +137,7 @@ export class OpenMailHttpClient {
     if (params.attachments?.length) {
       const { readFile } = await import("node:fs/promises");
       const formData = new FormData();
-      formData.append("to", params.to);
+      formData.append("to", Array.isArray(params.to) ? JSON.stringify(params.to) : params.to);
       if (params.subject) formData.append("subject", params.subject);
       formData.append("body", params.body);
       if (params.bodyHtml) formData.append("bodyHtml", params.bodyHtml);

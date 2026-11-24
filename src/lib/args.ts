@@ -1,4 +1,5 @@
 export type ParsedArgs = {
+  argv: string[];
   command: string[];
   flags: Record<string, string | boolean>;
 };
@@ -45,7 +46,7 @@ export function parseArgs(argv: string[]): ParsedArgs {
     i += 1;
   }
 
-  return { command, flags };
+  return { argv, command, flags };
 }
 
 export function getStringFlag(flags: Record<string, string | boolean>, key: string): string | undefined {
@@ -109,8 +110,7 @@ export function getRepeatedStringFlag(
 /**
  * Counts how many times a flag appears in an argv list, in either form
  * (`--to x` or `--to=x`). Used to reject flags that must not be repeated,
- * e.g. `--to`, which `parseArgs` would otherwise silently collapse to its
- * last value.
+ * e.g. `--subject`, or detect missing values for a repeated flag.
  */
 export function countFlagOccurrences(
   key: string,
@@ -124,4 +124,15 @@ export function countFlagOccurrences(
     }
   }
   return count;
+}
+
+/** Preserve a scalar for a single recipient and the entered order for a list. */
+export function getToFlag(parsed: ParsedArgs): string | string[] | undefined {
+  if (!("to" in parsed.flags)) return undefined;
+  const values = getRepeatedStringFlag("to", parsed.argv);
+  const addresses = values.flatMap(value => value.split(",").map(address => address.trim()));
+  if (values.length !== countFlagOccurrences("to", parsed.argv) || addresses.some(address => !address)) {
+    throw new Error("--to requires an email address for each recipient");
+  }
+  return addresses.length === 1 ? addresses[0] : addresses;
 }
