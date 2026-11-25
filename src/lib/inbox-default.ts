@@ -10,12 +10,14 @@ type InboxItem = {
   address: string;
 };
 
-export async function resolveInboxIdWithFallback(params: {
+export type InboxCommandContext = {
   client: OpenMailHttpClient;
   parsed: ParsedArgs;
   statePath: string;
   ctx: CliContext;
-}): Promise<string> {
+};
+
+export async function resolveInboxIdWithFallback(params: InboxCommandContext): Promise<string> {
   const fromFlag = getStringFlag(params.parsed.flags, "inbox-id");
   if (fromFlag) {
     return fromFlag;

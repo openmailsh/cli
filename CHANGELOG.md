@@ -6,6 +6,12 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Thi
 
 ---
 
+## [0.11.0]
+
+### Added
+
+- `openmail folders list` lists an inbox's standard and custom folders. Use its folder IDs with `openmail folders messages` to page through messages and drafts.
+
 ## [0.10.0]
 
 ### Added
