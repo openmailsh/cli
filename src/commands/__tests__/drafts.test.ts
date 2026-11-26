@@ -14,6 +14,22 @@ function run(args: string[]) {
 afterEach(() => { vi.restoreAllMocks(); vi.unstubAllGlobals(); });
 
 describe("draft commands", () => {
+  it("schedules the reviewed version and returns the queued send", async () => {
+    const sendAt = "2026-12-01T10:00:00Z";
+    const queued = { id: "schedule-1", status: "scheduled", sendAt };
+    const fetch = vi.fn().mockResolvedValue(new Response(JSON.stringify(queued), { status: 202 }));
+    vi.stubGlobal("fetch", fetch);
+    expect(await run(["send", "--draft-id", "d", "--updated-at", version, "--send-at", sendAt])).toEqual(queued);
+    expect(JSON.parse(fetch.mock.calls[0][1].body)).toEqual({ updatedAt: version, sendAt });
+  });
+
+  it.each([["--send-at"], ["--send-at="], ["--send-at", "tomorrow"], ["--send-at", version, "--send-at", version]])("rejects an ambiguous send time %j", async (...flags) => {
+    const fetch = vi.fn();
+    vi.stubGlobal("fetch", fetch);
+    await expect(run(["send", "--draft-id", "d", "--updated-at", version, ...flags])).rejects.toThrow("--send-at");
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
   it("edits only supplied fields with the exact version and never sends", async () => {
     const fetch = vi.fn().mockResolvedValue(new Response(JSON.stringify({ id: "d/1", updatedAt: "2026-11-18T10:00:00.000Z" })));
     vi.stubGlobal("fetch", fetch);

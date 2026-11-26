@@ -6,6 +6,12 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Thi
 
 ---
 
+## [0.13.0]
+
+### Added
+
+- Schedule a reviewed draft with `openmail drafts send --send-at <iso-8601>`.
+
 ## [0.12.0]
 
 ### Added

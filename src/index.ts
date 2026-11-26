@@ -499,7 +499,7 @@ function printHelp(topic?: string) {
       "  edit --draft-id <id> --updated-at <current updatedAt> [--inbox-id <owning-inbox>]",
       "       [--to <email> | --clear-to] [--cc <email> | --clear-cc] [--bcc <email> | --clear-bcc]",
       "       [--subject <text>] [--body-html <html>]",
-      "  send --draft-id <id> --updated-at <reviewed updatedAt> [--inbox-id <owning-inbox>]",
+      "  send --draft-id <id> --updated-at <reviewed updatedAt> [--inbox-id <owning-inbox>] [--send-at <iso-8601>]",
       "  delete --draft-id <id> --updated-at <reviewed updatedAt> [--inbox-id <owning-inbox>]",
       "",
       "Create requires only the sending inbox. Use --thread-id for a reply, or --source-thread-id alone for a forward.",
