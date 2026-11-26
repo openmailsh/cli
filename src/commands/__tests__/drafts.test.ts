@@ -9,9 +9,7 @@ import { runDraftsCommand } from "../drafts";
 const version = "2026-11-06T10:00:00.123Z";
 const client = new OpenMailHttpClient({ baseUrl: "https://example.invalid", apiKey: "om_test" });
 function run(args: string[]) {
-  const argv = ["drafts", ...args];
-  vi.spyOn(process, "argv", "get").mockReturnValue(["node", "openmail", ...argv]);
-  return runDraftsCommand(client, parseArgs(argv));
+  return runDraftsCommand(client, parseArgs(["drafts", ...args]));
 }
 afterEach(() => { vi.restoreAllMocks(); vi.unstubAllGlobals(); });
 
@@ -29,8 +27,9 @@ describe("draft commands", () => {
 
   it.each([
     { args: ["--body-html", "<p>Revised</p>"], fields: { bodyHtml: "<p>Revised</p>" } },
+    { args: ["--to", "a@example.com,b@example.com", "--to=c@example.com"], fields: { to: ["a@example.com", "b@example.com", "c@example.com"] } },
     { args: ["--body-html", "", "--subject", "", "--clear-to", "--clear-cc", "--clear-bcc"], fields: { bodyHtml: "", subject: "", to: null, cc: [], bcc: [] } },
-  ])("preserves explicit clears and submits HTML only: $args", async ({ args, fields }) => {
+  ])("submits only the requested draft edits: $args", async ({ args, fields }) => {
     const fetch = vi.fn().mockResolvedValue(new Response("{}"));
     vi.stubGlobal("fetch", fetch);
     await run(["edit", "--draft-id", "d", "--updated-at", version, ...args]);
@@ -110,6 +109,7 @@ describe("draft commands", () => {
   it("reads the version and sends only the stored reviewed draft", async () => {
     const draft = {
       id: "d/a", inboxId: "reply-inbox", updatedAt: version, threadId: "reply-thread",
+      to: "a@example.com, b@example.com", toRecipients: ["a@example.com", "b@example.com"],
       attachments: [{ filename: "report.pdf", contentType: "application/pdf", sizeBytes: 4, url: "https://example.invalid/draft-attachment" }],
     };
     const fetch = vi.fn().mockResolvedValueOnce(new Response(JSON.stringify(draft)))
@@ -164,7 +164,7 @@ describe("draft commands", () => {
     ["create", "--inbox-id", "in", "--body", "Plain"],
     ["create"], ["create", "--inbox-id"], ["create", "--inbox-id", "in", "--attach"],
     ["create", "--inbox-id", "in", "--inline-image", "invalid.png"],
-    ["create", "--inbox-id", "in", "--to", "a@example.com", "--to", "b@example.com"],
+    ["create", "--inbox-id", "in", "--to", "a@example.com", "--to"],
     ["create", "--inbox-id", "in", "--thread-id", "reply", "--source-thread-id", "other"],
     ["list", "--thread-id", "t"], ["list", "--inboox-id", "i"],
     ["send", "--draft-id", "d", "--updated-at", version, "--pod-id", "p"],
@@ -205,6 +205,7 @@ describe("draft commands", () => {
       await writeFile(photo, Buffer.from([1, 2, 3]));
       await writeFile(notes, "Meeting notes");
       await run(["create", "--inbox-id", "in", "--source-thread-id", "origin", "--body-html", html,
+        "--to", "x@example.com", "--to=y@example.com", "--bcc", "blind@example.com",
         "--cc", "a@example.com", "--cc=b@example.com", "--attach", notes, "--inline-image", `${cid}=${photo}`]);
       const [url, request] = fetch.mock.calls[0];
       expect(url).toBe("https://example.invalid/v1/drafts");
@@ -213,7 +214,9 @@ describe("draft commands", () => {
       expect(form.get("inboxId")).toBe("in");
       expect(form.get("sourceThreadId")).toBe("origin");
       expect(form.get("bodyHtml")).toBe(html);
+      expect(form.get("to")).toBe(JSON.stringify(["x@example.com", "y@example.com"]));
       expect(form.getAll("cc")).toEqual(["a@example.com", "b@example.com"]);
+      expect(form.getAll("bcc")).toEqual(["blind@example.com"]);
       const file = form.get("attachments") as File;
       expect(file.name).toBe("notes.txt");
       expect(await file.text()).toBe("Meeting notes");
