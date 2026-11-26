@@ -10,6 +10,7 @@ import { runPolicyCommand } from "../policy";
 import { runAttachmentsCommand } from "../attachments";
 import { runThreadsCommand } from "../threads";
 import { runMessagesCommand } from "../messages";
+import { runFoldersCommand } from "../folders";
 import { runScheduledCommand } from "../scheduled";
 
 type Call = { method: string; path: string; body?: unknown; query?: unknown };
@@ -146,6 +147,51 @@ describe("policy", () => {
     await expect(run(["policy", "get", "--pod-id", "p", "--inbox-id", "i"])).rejects.toThrow(
       "not both",
     );
+  });
+});
+
+describe("folders", () => {
+  const run = (client: OpenMailHttpClient, ...args: string[]) => runFoldersCommand({
+    client, parsed: parseArgs(["folders", ...args]), statePath: "", ctx: { output: "json", verbose: false },
+  });
+
+  it("lists standard and custom folders in the specified inbox", async () => {
+    const { client } = fakeClient();
+    const folders = { data: [{ id: 7, name: "INBOX", role: "inbox" }, { id: 8, name: "Jobs/Offers", role: null }] };
+    client.get = vi.fn().mockResolvedValue(folders);
+    expect(await run(client, "list", "--inbox-id", "a/b")).toEqual(folders);
+    expect(client.get).toHaveBeenCalledWith("/v1/inboxes/a%2Fb/folders");
+  });
+
+  it("uses the default inbox and returns both item kinds and the page total", async () => {
+    const { client } = fakeClient();
+    const page = { total: 9, data: [{ id: "m1", kind: "message" }, { id: "d1", kind: "draft", subject: null }] };
+    client.get = vi.fn().mockResolvedValue(page);
+    vi.stubEnv("OPENMAIL_INBOX_ID", "default");
+    try {
+      expect(await run(client, "messages", "--folder-id", "42", "--limit", "2", "--offset", "3")).toEqual(page);
+      expect(client.get).toHaveBeenCalledWith("/v1/inboxes/default/folders/42/messages", { limit: 2, offset: 3 });
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
+
+  it("uses API pagination defaults when flags are omitted", async () => {
+    const { client, calls } = fakeClient();
+    await run(client, "messages", "--folder-id", "1", "--inbox-id", "inb");
+    expect(calls).toEqual([{ method: "GET", path: "/v1/inboxes/inb/folders/1/messages", query: { limit: undefined, offset: undefined } }]);
+  });
+
+  it.each([
+    ["messages"], ["messages", "--folder-id"], ["messages", "--folder-id", "0"],
+    ["messages", "--folder-id", "1a"], ["messages", "--folder-id", "2147483648"],
+    ["messages", "--folder-id", "1", "--limit", "101"], ["messages", "--folder-id", "1", "--limit", "0"],
+    ["messages", "--folder-id", "1", "--offset", "-1"], ["messages", "--folder-id", "1", "--offset", "2147483648"],
+    ["list", "--inbox-id"], ["list", "--folder-id", "3"],
+  ])("rejects invalid arguments before making a request (%s %s %s %s %s)", async (...args) => {
+    const { client, calls } = fakeClient();
+    await expect(run(client, ...args)).rejects.toThrow();
+    expect(calls).toEqual([]);
   });
 });
 

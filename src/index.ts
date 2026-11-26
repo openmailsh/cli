@@ -8,6 +8,7 @@ import { runDomainCommand } from "./commands/domain";
 import { runPolicyCommand } from "./commands/policy";
 import { runAttachmentsCommand } from "./commands/attachments";
 import { runMessagesCommand } from "./commands/messages";
+import { runFoldersCommand } from "./commands/folders";
 import { runThreadsCommand } from "./commands/threads";
 import { runDraftsCommand } from "./commands/drafts";
 import { runSendCommand } from "./commands/send";
@@ -96,6 +97,7 @@ async function main() {
     "drafts",
     "scheduled",
     "messages",
+    "folders",
     "threads",
     "feedback",
   ]);
@@ -151,6 +153,8 @@ async function main() {
       ctx,
     });
     output = await runScheduledCommand(client, parsed, inboxId);
+  } else if (command === "folders") {
+    output = await runFoldersCommand({ client, parsed, statePath: globalConfig.statePath, ctx });
   } else if (command === "messages") {
     // Only `list` is inbox-scoped; `delete` takes a message id and must not
     // trip the inbox fallback (which can prompt or fail on a fresh install).
@@ -236,6 +240,7 @@ function printHelp(topic?: string) {
         "  drafts     Create, list, review, edit, send and delete saved drafts",
         "  scheduled  List, reschedule, or cancel a held send",
         "  messages   List/delete messages for an inbox",
+        "  folders    List folders in an inbox and browse their contents",
         "  threads    List/get/delete threads",
         "  attachments  Download or extract text from an attachment",
         "  feedback   Report a bug, friction, or feature request to the OpenMail team",
@@ -508,6 +513,24 @@ function printHelp(topic?: string) {
       "Sending uses stored recipients/content, removes the draft on success and retains it on failure.",
       "Delete permanently discards the draft and its files without sending. Stale versions and active sends block deletion.",
     ].join("\n"));
+    return;
+  }
+
+  if (usage === "folders") {
+    process.stdout.write(
+      [
+        "openmail folders",
+        "",
+        "  list [--inbox-id <id>]",
+        "  messages --folder-id <id> [--inbox-id <id>] [--limit <1-100>] [--offset <n>]",
+        "",
+        "List standard and custom folders in the selected inbox. Pass a numeric ID",
+        "from that list to messages to read up to 50 items by default, newest first.",
+        "In Drafts, kind identifies each item as a message or an editable draft.",
+        "",
+        ...globalFlags,
+      ].join("\n"),
+    );
     return;
   }
 

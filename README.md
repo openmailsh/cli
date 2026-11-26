@@ -85,6 +85,11 @@ openmail messages list [--direction inbound|outbound]
 openmail threads list
 openmail threads get --thread-id thr_xxx
 
+# Browse standard and custom folders (uses the default inbox if --inbox-id is omitted)
+openmail folders list --inbox-id inb_xxx --json
+# Pass the numeric ID of a folder returned for that inbox
+openmail folders messages --inbox-id inb_xxx --folder-id 42 --limit 20 --offset 0 --json
+
 # Delete. A thread lands in Trash in the console, where it can be restored.
 # Both need an account-wide or pod-scoped key.
 openmail threads delete --thread-id thr_xxx
