@@ -59,7 +59,7 @@ openmail inbox webhook clear --inbox-id inb_xxx
 # Send email (uses default inbox from init, or pass --inbox-id)
 openmail send --to hello@example.com --subject "Hi" --body "Hello"
 
-# Send to multiple primary recipients (repeat --to or use a comma-separated list)
+# Repeat --to for each primary recipient
 openmail send --to a@example.com --to b@example.com --cc c@example.com \
   --subject "Hi" --body "Hello"
 
@@ -192,7 +192,7 @@ openmail drafts get --draft-id "<draft-id>" --json
 openmail drafts send --draft-id "<draft-id>" --updated-at "<reviewed-updatedAt>" --json
 ```
 
-Choose the sending inbox when creating the draft. All content fields are optional. Body input is HTML only (`--body-html`); the API generates the plain-text fallback. Repeat `--to` or pass a comma-separated list of primary recipients. Use `--cc` for copies and `--bcc` for blind copies. Both flags are repeatable. Attach files with repeatable `--attach`. HTML can contain supported embedded or public remote images. For a local inline image, pass `--inline-image 'inline-<UUID>@openmail=./photo.png'` and reference the same ID with `cid:` in the HTML. Files and inline images share a 25 MiB limit.
+Choose the sending inbox when creating the draft. All content fields are optional. Body input is HTML only (`--body-html`); the API generates the plain-text fallback. Pass one `--to` flag per primary recipient. Use `--cc` for copies and `--bcc` for blind copies. Both flags are repeatable. Attach files with repeatable `--attach`. HTML can contain supported embedded or public remote images. For a local inline image, pass `--inline-image 'inline-<UUID>@openmail=./photo.png'` and reference the same ID with `cid:` in the HTML. Files and inline images share a 25 MiB limit.
 
 Use `--thread-id` to save a reply in a thread in the owning inbox. The API derives its reply subject. To associate a forward or new conversation with an existing thread, supply `--source-thread-id` alone with the message you want to send. Both appear on the source thread. List all accessible drafts or combine `--inbox-id`, `--pod-id`, `--source-thread-id`, and `--query`. Sending always uses the owning inbox. An optional `--inbox-id` on send must match it.
 
