@@ -4,13 +4,17 @@ import type { ParsedArgs } from "../lib/args";
 import { countFlagOccurrences, getRepeatedStringFlag, getStringFlag, getToFlag } from "../lib/args";
 import { ApiError, type OpenMailHttpClient } from "../lib/http";
 
+function isTimestamp(value: string): boolean {
+  return /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/.test(value) && Number.isFinite(Date.parse(value));
+}
+
 const globalFlags = ["api-key", "base-url", "state-path", "json", "verbose"];
 const actionFlags: Record<string, string[]> = {
   create: ["inbox-id", "thread-id", "source-thread-id", "to", "cc", "bcc", "subject", "body-html", "attach", "inline-image"],
   list: ["inbox-id", "pod-id", "source-thread-id", "query", "limit", "offset"],
   get: ["draft-id"],
   edit: ["draft-id", "updated-at", "inbox-id", "to", "cc", "bcc", "clear-to", "clear-cc", "clear-bcc", "subject", "body-html"],
-  send: ["draft-id", "updated-at", "inbox-id"],
+  send: ["draft-id", "updated-at", "inbox-id", "send-at"],
   delete: ["draft-id", "updated-at", "inbox-id"],
 };
 
@@ -152,7 +156,7 @@ export async function runDraftsCommand(client: OpenMailHttpClient, parsed: Parse
   // Never replace the reviewed version, including when discarding a draft.
   const updatedAt = getStringFlag(parsed.flags, "updated-at");
   if (!updatedAt) throw new Error("missing --updated-at; use the exact updatedAt from the draft you reviewed with `drafts get`");
-  if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/.test(updatedAt) || !Number.isFinite(Date.parse(updatedAt))) {
+  if (!isTimestamp(updatedAt)) {
     throw new Error("--updated-at must be an ISO 8601 timestamp with timezone");
   }
   try {
@@ -162,7 +166,11 @@ export async function runDraftsCommand(client: OpenMailHttpClient, parsed: Parse
     if (action === "delete") {
       return await client.delete(draftPath, { updatedAt, ...(inboxId ? { inboxId } : {}) });
     }
-    return await client.post(`${draftPath}/send`, { updatedAt, ...(inboxId ? { inboxId } : {}) });
+    const sendAt = getStringFlag(parsed.flags, "send-at");
+    if ("send-at" in parsed.flags && (!sendAt || !isTimestamp(sendAt) || countFlagOccurrences("send-at", parsed.argv) !== 1)) {
+      throw new Error("--send-at requires one ISO-8601 timestamp with timezone");
+    }
+    return await client.post(`${draftPath}/send`, { updatedAt, ...(inboxId ? { inboxId } : {}), ...(sendAt ? { sendAt } : {}) });
   } catch (err) {
     if (err instanceof ApiError && typeof err.body === "object" && err.body !== null) {
       const body = err.body as Record<string, unknown>;
