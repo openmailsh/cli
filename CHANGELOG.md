@@ -6,6 +6,12 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Thi
 
 ---
 
+## [0.11.0]
+
+### Added
+
+- Repeat `--to` for each primary recipient in sends, replies, scheduled sends and drafts.
+
 ## [0.10.0]
 
 ### Added
