@@ -60,3 +60,15 @@ describe("send recipients", () => {
     expect(fetch).not.toHaveBeenCalled();
   });
 });
+
+describe("scheduled sends", () => {
+  it.each([
+    ["--send-at"], ["--send-at="], ["--send-at", ""], ["--send-at", "tomorrow"],
+    ["--send-at", "2026-12-01T10:00:00Z", "--send-at", "2026-12-02T10:00:00Z"],
+  ])("rejects an ambiguous send time before making a request: %j", async (...flags) => {
+    const fetch = vi.fn();
+    vi.stubGlobal("fetch", fetch);
+    await expect(run(["--subject", "Meeting", "--to", addresses[0], ...flags])).rejects.toThrow("--send-at");
+    expect(fetch).not.toHaveBeenCalled();
+  });
+});
