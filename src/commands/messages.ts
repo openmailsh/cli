@@ -15,20 +15,26 @@ export async function runMessagesCommand(
     return client.delete(`/v1/messages/${encodeURIComponent(messageId)}`);
   }
 
-  if (action !== "list") {
-    throw new Error("missing messages action (list|delete)");
+  if (action !== "list" && action !== "search") {
+    throw new Error("missing messages action (list|search|delete)");
   }
 
   const inboxId = getStringFlag(parsed.flags, "inbox-id") ?? inboxIdOverride;
   const direction = getStringFlag(parsed.flags, "direction");
   const limit = getNumberFlag(parsed.flags, "limit");
   const offset = getNumberFlag(parsed.flags, "offset");
+  const query = getStringFlag(parsed.flags, "query")?.trim();
 
+  if (parsed.flags.query === true || (action === "search" && !query)) {
+    throw new Error("--query requires a search term");
+  }
+  if (query && query.length > 200) throw new Error("--query must be 200 characters or fewer");
   if (!inboxId) throw new Error("missing inbox id; run `openmail init` or pass --inbox-id");
 
   return client.get(`/v1/inboxes/${encodeURIComponent(inboxId)}/messages`, {
     direction,
     limit,
     offset,
+    q: query || undefined,
   });
 }
