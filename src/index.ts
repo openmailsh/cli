@@ -156,11 +156,11 @@ async function main() {
   } else if (command === "folders") {
     output = await runFoldersCommand({ client, parsed, statePath: globalConfig.statePath, ctx });
   } else if (command === "messages") {
-    // Only `list` is inbox-scoped; `delete` takes a message id and must not
+    // Only `list` and `search` are inbox-scoped; `delete` takes a message id and must not
     // trip the inbox fallback (which can prompt or fail on a fresh install).
     const action = parsed.command[1];
     const inboxId =
-      action === "list"
+      action === "list" || action === "search"
         ? await resolveInboxIdWithFallback({
             client,
             parsed,
@@ -545,7 +545,9 @@ function printHelp(topic?: string) {
         "openmail messages",
         "",
         "Subcommands:",
-        "  list [--inbox-id <id>] [--direction inbound|outbound] [--limit <n>] [--offset <n>]",
+        "  list [--inbox-id <id>] [--direction inbound|outbound] [--query <words>] [--limit <n>] [--offset <n>]",
+        "  search --query <words> [--inbox-id <id>] [--direction inbound|outbound] [--limit <n>] [--offset <n>]",
+        "                               Messages holding every word in the subject, body, sender or To address",
         "  delete --message-id <id>     Delete a message (account or pod key)",
         "",
         ...globalFlags,
@@ -592,7 +594,7 @@ function printHelp(topic?: string) {
         "",
         "Examples:",
         "  openmail feedback --type bug --message \"send returned 500 for a plain text email\" --endpoint /v1/inboxes/{id}/send --error-code internal_error",
-        "  openmail feedback --type feature_request --message \"let me search messages by subject\"",
+        "  openmail feedback --type feature_request --message \"let me filter threads by label\"",
         "",
         ...globalFlags,
       ].join("\n"),

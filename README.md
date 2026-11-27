@@ -83,6 +83,9 @@ openmail scheduled cancel --send-id 9f3a1b2c-0000-4000-8000-000000000001
 # List messages and threads
 openmail messages list [--direction inbound|outbound]
 openmail threads list
+
+# Search messages: every word must appear in the subject, body, sender or To address
+openmail messages search --query "invoice acme" --json
 openmail threads get --thread-id thr_xxx
 
 # Browse standard and custom folders (uses the default inbox if --inbox-id is omitted)

@@ -215,6 +215,30 @@ describe("folders", () => {
   });
 });
 
+describe("messages search", () => {
+  it("sends the trimmed query as q on the inbox message list", async () => {
+    const { client, calls } = fakeClient();
+    const run = (...argv: string[]) => runMessagesCommand(client, parseArgs(["messages", ...argv]), "default");
+    await run("search", "--query", "  invoice acme ", "--direction", "inbound", "--limit", "5");
+    await run("list", "--inbox-id", "inb", "--query", "friday");
+    await run("list");
+    expect(calls).toEqual([
+      { method: "GET", path: "/v1/inboxes/default/messages", query: { direction: "inbound", limit: 5, offset: undefined, q: "invoice acme" } },
+      { method: "GET", path: "/v1/inboxes/inb/messages", query: { direction: undefined, limit: undefined, offset: undefined, q: "friday" } },
+      { method: "GET", path: "/v1/inboxes/default/messages", query: { direction: undefined, limit: undefined, offset: undefined, q: undefined } },
+    ]);
+  });
+
+  it.each([
+    [["search"]], [["search", "--query", "  "]], [["search", "--query"]], [["list", "--query"]],
+    [["search", "--query", "a".repeat(201)]],
+  ])("rejects %j before calling the API", async (argv) => {
+    const { client, calls } = fakeClient();
+    await expect(runMessagesCommand(client, parseArgs(["messages", ...argv]), "default")).rejects.toThrow(/--query/);
+    expect(calls).toEqual([]);
+  });
+});
+
 describe("attachments", () => {
   it("prints both attachment IDs in thread and inbox message listings", async () => {
     const { client } = fakeClient();
