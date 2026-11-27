@@ -14,12 +14,18 @@ function integerFlag(parsed: ParsedArgs, flag: string, min: number, max: number)
   return value;
 }
 
+const actionFlags: Record<string, string[]> = {
+  list: [], messages: ["folder-id", "limit", "offset"], create: ["name"],
+  rename: ["folder-id", "name"], delete: ["folder-id"],
+  move: ["message-id", "folder-id"], restore: ["message-id"],
+};
+
 export async function runFoldersCommand(params: InboxCommandContext) {
   const { client, parsed } = params;
   const [, action, extra] = parsed.command;
-  if (action !== "list" && action !== "messages") throw new Error("expected folders action (list|messages)");
+  if (!Object.hasOwn(actionFlags, action)) throw new Error(`expected folders action (${Object.keys(actionFlags).join("|")})`);
   if (extra) throw new Error(`unexpected argument for folders ${action}: ${extra}`);
-  const allowed = action === "list" ? sharedFlags : [...sharedFlags, "folder-id", "limit", "offset"];
+  const allowed = [...sharedFlags, ...actionFlags[action]];
   for (const flag of Object.keys(parsed.flags)) {
     if (!allowed.includes(flag)) throw new Error(`folders ${action} does not support --${flag}`);
   }
@@ -27,13 +33,26 @@ export async function runFoldersCommand(params: InboxCommandContext) {
     throw new Error("--inbox-id requires an ID");
   }
   const folderId = integerFlag(parsed, "folder-id", 1, maxInt32);
-  if (action === "messages" && folderId === undefined) {
+  if (actionFlags[action].includes("folder-id") && folderId === undefined) {
     throw new Error("missing --folder-id (use the ID from `openmail folders list`)");
   }
   const limit = integerFlag(parsed, "limit", 1, 100);
   const offset = integerFlag(parsed, "offset", 0, maxInt32);
+  const name = getStringFlag(parsed.flags, "name")?.trim();
+  const messageId = getStringFlag(parsed.flags, "message-id")?.trim();
+  if (actionFlags[action].includes("name") && !name) throw new Error("missing --name");
+  if (actionFlags[action].includes("message-id") && !messageId) throw new Error("missing --message-id");
   const inboxId = await resolveInboxIdWithFallback(params);
-  const path = `/v1/inboxes/${encodeURIComponent(inboxId)}/folders`;
+  const inboxPath = `/v1/inboxes/${encodeURIComponent(inboxId)}`;
+  const path = `${inboxPath}/folders`;
+  if (action === "create") return client.post(path, { name });
+  if (action === "rename") return client.patch(`${path}/${folderId}`, { name });
+  if (action === "delete") return client.delete(`${path}/${folderId}`);
+  if (messageId) {
+    const messagePath = `${inboxPath}/messages/${encodeURIComponent(messageId)}`;
+    if (action === "move") return client.put(`${messagePath}/folder`, { folderId });
+    return client.post(`${messagePath}/restore`);
+  }
   if (action === "list") return client.get(path);
   return client.get(`${path}/${folderId}/messages`, { limit, offset });
 }

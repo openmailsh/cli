@@ -93,6 +93,13 @@ openmail folders list --inbox-id inb_xxx --json
 # Pass the numeric ID of a folder returned for that inbox
 openmail folders messages --inbox-id inb_xxx --folder-id 42 --limit 20 --offset 0 --json
 
+# Manage custom folders and file messages in the selected inbox
+openmail folders create --name Receipts
+openmail folders rename --folder-id 42 --name Invoices
+openmail folders move --message-id msg_123 --folder-id 42
+openmail folders restore --message-id msg_123
+openmail folders delete --folder-id 42
+
 # Delete. A thread lands in Trash in the console, where it can be restored.
 # Both need an account-wide or pod-scoped key.
 openmail threads delete --thread-id thr_xxx
