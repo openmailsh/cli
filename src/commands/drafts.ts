@@ -1,12 +1,8 @@
 import { openAsBlob } from "node:fs";
 import { resolveAttachment } from "../lib/attachments";
 import type { ParsedArgs } from "../lib/args";
-import { countFlagOccurrences, getRepeatedStringFlag, getStringFlag, getToFlag } from "../lib/args";
+import { countFlagOccurrences, getSendAtFlag, isTimestamp, getRepeatedStringFlag, getStringFlag, getToFlag } from "../lib/args";
 import { ApiError, type OpenMailHttpClient } from "../lib/http";
-
-function isTimestamp(value: string): boolean {
-  return /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/.test(value) && Number.isFinite(Date.parse(value));
-}
 
 const globalFlags = ["api-key", "base-url", "state-path", "json", "verbose"];
 const actionFlags: Record<string, string[]> = {
@@ -166,10 +162,7 @@ export async function runDraftsCommand(client: OpenMailHttpClient, parsed: Parse
     if (action === "delete") {
       return await client.delete(draftPath, { updatedAt, ...(inboxId ? { inboxId } : {}) });
     }
-    const sendAt = getStringFlag(parsed.flags, "send-at");
-    if ("send-at" in parsed.flags && (!sendAt || !isTimestamp(sendAt) || countFlagOccurrences("send-at", parsed.argv) !== 1)) {
-      throw new Error("--send-at requires one ISO-8601 timestamp with timezone");
-    }
+    const sendAt = getSendAtFlag(parsed);
     return await client.post(`${draftPath}/send`, { updatedAt, ...(inboxId ? { inboxId } : {}), ...(sendAt ? { sendAt } : {}) });
   } catch (err) {
     if (err instanceof ApiError && typeof err.body === "object" && err.body !== null) {

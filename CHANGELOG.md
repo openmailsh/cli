@@ -6,6 +6,12 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Thi
 
 ---
 
+## [0.13.1]
+
+### Fixed
+
+- `openmail send` rejects an empty, malformed, or repeated `--send-at` before submitting the email.
+
 ## [0.13.0]
 
 ### Added

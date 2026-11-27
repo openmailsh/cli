@@ -136,3 +136,16 @@ export function getToFlag(parsed: ParsedArgs): string | string[] | undefined {
   }
   return addresses.length === 1 ? addresses[0] : addresses;
 }
+
+export function isTimestamp(value: string): boolean {
+  return /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/.test(value) && Number.isFinite(Date.parse(value));
+}
+
+export function getSendAtFlag(parsed: ParsedArgs): string | undefined {
+  if (!("send-at" in parsed.flags)) return undefined;
+  const value = getStringFlag(parsed.flags, "send-at");
+  if (!value || !isTimestamp(value) || countFlagOccurrences("send-at", parsed.argv) !== 1) {
+    throw new Error("--send-at requires one ISO-8601 timestamp with timezone");
+  }
+  return value;
+}
