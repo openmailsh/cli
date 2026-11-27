@@ -6,6 +6,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Thi
 
 ---
 
+## [0.14.0]
+
+- Manage custom folders, move messages and restore messages from Trash with `openmail folders`.
+
 ## [0.13.1]
 
 ### Fixed

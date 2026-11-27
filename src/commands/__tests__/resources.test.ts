@@ -155,6 +155,24 @@ describe("folders", () => {
     client, parsed: parseArgs(["folders", ...args]), statePath: "", ctx: { output: "json", verbose: false },
   });
 
+  it("manages folders and files messages within the selected inbox", async () => {
+    const { client, calls } = fakeClient();
+    const invoke = (...args: string[]) => run(client, ...args, "--inbox-id", "a/b");
+    await invoke("create", "--name", "Receipts");
+    await invoke("rename", "--folder-id", "42", "--name", "Bills");
+    await invoke("move", "--message-id", "m/1", "--folder-id", "42");
+    await invoke("restore", "--message-id", "m/1");
+    await invoke("delete", "--folder-id", "42");
+    const base = "/v1/inboxes/a%2Fb";
+    expect(calls).toEqual([
+      { method: "POST", path: base + "/folders", body: { name: "Receipts" } },
+      { method: "PATCH", path: base + "/folders/42", body: { name: "Bills" } },
+      { method: "PUT", path: base + "/messages/m%2F1/folder", body: { folderId: 42 } },
+      { method: "POST", path: base + "/messages/m%2F1/restore" },
+      { method: "DELETE", path: base + "/folders/42" },
+    ]);
+  });
+
   it("lists standard and custom folders in the specified inbox", async () => {
     const { client } = fakeClient();
     const folders = { data: [{ id: 7, name: "INBOX", role: "inbox" }, { id: 8, name: "Jobs/Offers", role: null }] };
@@ -187,6 +205,8 @@ describe("folders", () => {
     ["messages", "--folder-id", "1a"], ["messages", "--folder-id", "2147483648"],
     ["messages", "--folder-id", "1", "--limit", "101"], ["messages", "--folder-id", "1", "--limit", "0"],
     ["messages", "--folder-id", "1", "--offset", "-1"], ["messages", "--folder-id", "1", "--offset", "2147483648"],
+    ["create", "--name"], ["rename", "--folder-id", "3"], ["delete"],
+    ["move", "--message-id", "msg"], ["restore", "--message-id"],
     ["list", "--inbox-id"], ["list", "--folder-id", "3"],
   ])("rejects invalid arguments before making a request (%s %s %s %s %s)", async (...args) => {
     const { client, calls } = fakeClient();
